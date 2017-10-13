@@ -1,7 +1,5 @@
 import psycopg2
 import psycopg2.extras
-import json
-#from pip._vendor.html5lib.filters.sanitizer import allowed_protocols
 
 # http://initd.org/psycopg/docs/usage.html
 

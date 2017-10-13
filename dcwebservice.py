@@ -78,8 +78,7 @@ if __name__ == '__main__':
     if platform == "linux" or platform == "linux2":
         from cherrypy.process.plugins import Daemonizer
         from cherrypy.process.plugins import PIDFile 
-        d = Daemonizer(cherrypy.engine)
-        d.subscribe()
+        Daemonizer(cherrypy.engine).subscribe()
         PIDFile(cherrypy.engine, 'webservice.pid').subscribe()
     
     cherrypy.quickstart(DataCollectorService(), path, conf)
