@@ -1,8 +1,11 @@
+#!/usr/bin/python
+
 import cherrypy
 from masterdata import MasterData
 import uuid
 import json
 import configparser
+from cherrypy.process.plugins import Daemonizer
 
 
 @cherrypy.expose
@@ -70,4 +73,9 @@ if __name__ == '__main__':
             'tools.response_headers.headers': [('Content-Type', 'text/plain')],
         }
     }
+    
+    from cherrypy.process.plugins import Daemonizer
+    d = Daemonizer(cherrypy.engine)
+    d.subscribe()
+    
     cherrypy.quickstart(DataCollectorService(), path, conf)
