@@ -5,7 +5,7 @@ from masterdata import MasterData
 import uuid
 import json
 import configparser
-from cherrypy.process.plugins import Daemonizer
+from sys import platform
 
 
 @cherrypy.expose
@@ -74,8 +74,12 @@ if __name__ == '__main__':
         }
     }
     
-    from cherrypy.process.plugins import Daemonizer
-    d = Daemonizer(cherrypy.engine)
-    d.subscribe()
+    
+    if platform == "linux" or platform == "linux2":
+        from cherrypy.process.plugins import Daemonizer
+        from cherrypy.process.plugins import PIDFile 
+        d = Daemonizer(cherrypy.engine)
+        d.subscribe()
+        PIDFile(cherrypy.engine, 'webservice.pid').subscribe()
     
     cherrypy.quickstart(DataCollectorService(), path, conf)
