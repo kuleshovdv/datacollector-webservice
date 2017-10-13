@@ -6,9 +6,9 @@ import json
 # http://initd.org/psycopg/docs/usage.html
 
 class MasterData:
-    def __init__(self, basename, username, password):
+    def __init__(self, basename, username, password, host = "localhost", port = 5432):
         psycopg2.extras.register_uuid()
-        self._conn = psycopg2.connect("dbname=%s user=%s password=%s" % (basename, username, password))
+        self._conn = psycopg2.connect("dbname=%s user=%s password=%s host=%s port=%s" % (basename, username, password, host, port))
         self._cur = self._conn.cursor()
         
         
@@ -19,12 +19,16 @@ class MasterData:
         
         
     def createTable(self):
-        self._cur.execute('''CREATE TABLE IF NOT EXISTS masterdata 
+        self._cur.execute('''CREATE TABLE IF NOT EXISTS tokens
+        (token uuid PRIMARY KEY,
+        modtime timestamp DEFAULT current_timestamp,
+        ipaddr inet,
+        type integer);
+        CREATE TABLE IF NOT EXISTS masterdata 
         (id serial PRIMARY KEY,
-        modtime timestamp DEFAULT current_timestamp, 
-        token uuid,
-        barcode text,
-        name text,
+        token uuid REFERENCES tokens NOT NULL,
+        barcode text NOT NULL,
+        name text NOT NULL,
         advanced_name text,
         unit text);
         ''')
@@ -32,12 +36,14 @@ class MasterData:
         
         
     def dropTable(self):
-        self._cur.execute("DROP TABLE masterdata")
+        self._cur.execute('''DROP TABLE masterdata;
+        DROP TABLE tokens;''')
         self._conn.commit()
         
         
-    def putJsonData(self, token, jsonData):
+    def putJsonData(self, token, jsonData, ipaddr = None):
         #jsonData = json.loads(json_Data)
+        self._cur.execute("INSERT INTO tokens (token, ipaddr, type) VALUES (%s, %s, %s);", (token, ipaddr, 0))
         
         for item in jsonData:
             datalist = list(item.values())
@@ -51,7 +57,7 @@ class MasterData:
                                item.get("unit"))
                               )
   
-            print(datalist)
+            #print(datalist)
         self._conn.commit()
         
         
