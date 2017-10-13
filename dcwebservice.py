@@ -74,7 +74,6 @@ if __name__ == '__main__':
         }
     }
     
-    
     if platform == "linux" or platform == "linux2":
         from cherrypy.process.plugins import Daemonizer
         from cherrypy.process.plugins import PIDFile 
