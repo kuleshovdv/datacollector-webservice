@@ -1,15 +1,24 @@
 #!/usr/bin/python
 
+import sys
 import cherrypy
 from masterdata import MasterData
 import uuid
 import json
+import qrcode
 import configparser
 from sys import platform
+from cherrypy.lib import file_generator
+try:
+    from StringIO import StringIO as ioBuffer
+except ImportError:
+    from io import BytesIO as ioBuffer
 
 
 @cherrypy.expose
 class DataCollectorService(object):
+    
+    _url = 'http://lineris.westeurope.cloudapp.azure.com:8080'
 
     @cherrypy.tools.json_out()
     def GET(self, token = None,tag = "json"):
@@ -33,7 +42,14 @@ class DataCollectorService(object):
             
         token = database.putJsonData(key, jsonData, cherrypy.request.remote.ip)
         if token != None:
-            return str(token)
+            qrData = self._url + "/" + str(token) + "/json"
+            qr = qrcode.make(qrData, box_size = 3)
+            #pyqrcode.create(qrData)
+            cherrypy.response.headers['Content-Type'] = "image/png"
+            buffer = ioBuffer()
+            qr.save(buffer, format='PNG')
+            return  buffer.getvalue()
+            #return str(token)
         else:
             cherrypy.response.status = 403
             return "Forbidden"
