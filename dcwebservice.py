@@ -18,7 +18,15 @@ except ImportError:
 @cherrypy.expose
 class DataCollectorService(object):
     
-    _url = 'http://lineris.westeurope.cloudapp.azure.com:8080'
+    def __init__(self, url, path = "/"):
+        self._url = url
+        port = cherrypy.config.get('server.socket_port')
+        if port == None:
+            port = 8080
+        if port != 80:
+            self._url += ":%s" % port
+        self._url += path
+        
 
     @cherrypy.tools.json_out()
     def GET(self, token = None,tag = "json"):
@@ -42,7 +50,7 @@ class DataCollectorService(object):
             
         token = database.putJsonData(key, jsonData, cherrypy.request.remote.ip)
         if token != None:
-            qrData = self._url + "/" + str(token) + "/json"
+            qrData = self._url + str(token) + "/json"
             qr = qrcode.make(qrData, box_size = 3)
             #pyqrcode.create(qrData)
             cherrypy.response.headers['Content-Type'] = "image/png"
@@ -87,6 +95,7 @@ if __name__ == '__main__':
     #database.dropTable()  # uncomment this row if you need to clean database
     database.createTable(masterKey)
     
+    url = 'http://localhost'
     path = '/'
     
     cherrypy.config.update({'server.socket_host': '0.0.0.0'})
@@ -94,7 +103,9 @@ if __name__ == '__main__':
         webserviceConfig = config['WEBSERVICE']
         if 'Port' in webserviceConfig: 
             cherrypy.config.update({'server.socket_port': int(webserviceConfig['Port'])})
-        if 'Path'  in webserviceConfig:
+        if 'url' in webserviceConfig:
+            url =  webserviceConfig['url']
+        if 'Path' in webserviceConfig:
             path = webserviceConfig['Path']
             
     
@@ -114,4 +125,4 @@ if __name__ == '__main__':
         PIDFile(cherrypy.engine, 'webservice.pid').subscribe() # for kill daemon type bash $ kill $(cat webservice.pid)
     
     
-    cherrypy.quickstart(DataCollectorService(), path, conf)
+    cherrypy.quickstart(DataCollectorService(url, path), path, conf)
