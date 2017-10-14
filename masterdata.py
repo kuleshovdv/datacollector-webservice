@@ -1,5 +1,6 @@
 import psycopg2
 import psycopg2.extras
+import uuid
 
 class MasterData:
     def __init__(self, basename, username, password, host = "localhost", port = 5432):
@@ -14,9 +15,13 @@ class MasterData:
         self._conn.close()
         
         
-    def createTable(self):
-        self._cur.execute('''CREATE TABLE IF NOT EXISTS tokens
+    def createTable(self, masterKey = None):
+        self._cur.execute('''CREATE TABLE IF NOT EXISTS keys
+        (key uuid PRIMARY KEY,
+        tokens_limit integer);
+        CREATE TABLE IF NOT EXISTS tokens
         (token uuid PRIMARY KEY,
+        key uuid REFERENCES keys NOT NULL,
         modtime timestamp DEFAULT current_timestamp,
         ipaddr inet,
         type integer);
@@ -28,22 +33,58 @@ class MasterData:
         advanced_name text,
         unit text);
         ''')
+        
+        if masterKey:
+            self._cur.execute('''INSERT INTO keys (key, tokens_limit) VALUES (%s, 0)
+                                 ON CONFLICT DO NOTHING;
+                                 ''', [masterKey])
+        
         self._conn.commit()
         
         
     def dropTable(self):
         self._cur.execute('''DROP TABLE masterdata;
-        DROP TABLE tokens;''')
+        DROP TABLE tokens;
+        DROP TABLE keys;
+        ''')
         self._conn.commit()
         
         
-    def putJsonData(self, token, jsonData, ipaddr = None):
-        self._cur.execute("INSERT INTO tokens (token, ipaddr, type) VALUES (%s, %s, %s);", (token, ipaddr, 0))
+    def putJsonData(self, key, jsonData, ipaddr = None):
+        
+        self._cur.execute('''SELECT v2.*, v1.count FROM
+        (SELECT key, count(tokens) 
+         FROM tokens 
+         GROUP BY key) AS v1
+        RIGHT OUTER JOIN
+        (SELECT key, tokens_limit 
+         FROM keys
+         WHERE key = %s) AS v2
+        ON v1.key = v2.key;''', [key])
+        checkLimit = self._cur.fetchone()
+        
+        if len(checkLimit) > 0:
+            if checkLimit[1] not in (None, 0):
+                tokensCount = checkLimit[2]
+                if tokensCount == None:
+                    tokensCount = 0 
+                if tokensCount >= checkLimit[1]:
+                    return None
+                    # -- лимит превышен 
+        else:
+            return None
+            # --нет ключа 
+            
+        token = uuid.uuid4()
+        
+        self._cur.execute("INSERT INTO tokens (token, key, ipaddr, type) VALUES (%s, %s, %s, %s);", 
+                          (token, key, ipaddr, 0))
         
         for item in jsonData:
             datalist = list(item.values())
             datalist.insert(0, token)
-            self._cur.execute("INSERT INTO masterdata (token, barcode, name, advanced_name, unit) VALUES (%s, %s, %s, %s, %s);" ,
+            self._cur.execute('''INSERT INTO masterdata (token, barcode, name, advanced_name, unit) 
+                                 VALUES (%s, %s, %s, %s, %s);''' ,
                               (token,
                                item.get("barcode"),
                                item.get("name"),
@@ -51,6 +92,7 @@ class MasterData:
                                item.get("unit"))
                               )
         self._conn.commit()
+        return token
         
         
     def getData(self, token):

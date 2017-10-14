@@ -19,23 +19,32 @@ class DataCollectorService(object):
             return jsonData
         except:
             cherrypy.response.status = 404
-            return "Token must be UUID"
+            return "Token not found"
             
     
     def POST(self):
         rawData = cherrypy.request.body.read(int(cherrypy.request.headers['Content-Length']))
         jsonData = json.loads(rawData)
-        token = uuid.uuid4()
-        database.putJsonData(token, jsonData, cherrypy.request.remote.ip)
-        return str(token)
+        try:
+            key = uuid.UUID(cherrypy.request.headers.get('access-key'))
+        except:
+            cherrypy.response.status = 403
+            return "Forbidden"
+            
+        token = database.putJsonData(key, jsonData, cherrypy.request.remote.ip)
+        if token != None:
+            return str(token)
+        else:
+            cherrypy.response.status = 403
+            return "Forbidden"
 
 
 
             
 if __name__ == '__main__':
-    
     databaseHost = 'localhost'
     databasePort = 5432
+    masterKey = None
     
     config = configparser.ConfigParser()
     config.read('config.ini')
@@ -47,12 +56,20 @@ if __name__ == '__main__':
             databasePort = databaseConfig['Port']
         databaseName = databaseConfig['BaseName']
         databaseUser = databaseConfig['UserName']
-        databasePassword = databaseConfig['Password']  
+        databasePassword = databaseConfig['Password']
+        if 'MasterKey' in databaseConfig:
+            try:
+                masterKey = uuid.UUID(databaseConfig['MasterKey'])
+            except:
+                masterKey = None
+    else:
+        print("Wrong INI file")
+        quit()
     
     database = MasterData(databaseName, databaseUser, databasePassword, databaseHost, databasePort)
 
-    #database.dropTable()
-    database.createTable()
+    #database.dropTable()  # uncomment this row if you need to clean database
+    database.createTable(masterKey)
     
     path = '/'
     
@@ -74,10 +91,11 @@ if __name__ == '__main__':
         }
     }
     
-    if platform == "linux" or platform == "linux2":
+    if platform == "linux" or platform == "linux2":  # run as daemon on Linux
         from cherrypy.process.plugins import Daemonizer
         from cherrypy.process.plugins import PIDFile 
         Daemonizer(cherrypy.engine).subscribe()
-        PIDFile(cherrypy.engine, 'webservice.pid').subscribe()
+        PIDFile(cherrypy.engine, 'webservice.pid').subscribe() # for kill daemon type bash $ kill $(cat webservice.pid)
+    
     
     cherrypy.quickstart(DataCollectorService(), path, conf)
