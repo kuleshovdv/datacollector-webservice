@@ -70,10 +70,10 @@ class MasterData:
                     tokensCount = 0 
                 if tokensCount >= checkLimit[1]:
                     return None
-                    # -- лимит превышен 
+                    # -- limit 
         else:
             return None
-            # --нет ключа 
+            # -- no key 
             
         token = uuid.uuid4()
         
