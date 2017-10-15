@@ -1,6 +1,5 @@
 #!/usr/bin/python
 
-import sys
 import cherrypy
 from masterdata import MasterData
 import uuid
@@ -8,7 +7,6 @@ import json
 import qrcode
 import configparser
 from sys import platform
-from cherrypy.lib import file_generator
 try:
     from StringIO import StringIO as ioBuffer
 except ImportError:
@@ -28,36 +26,74 @@ class DataCollectorService(object):
         self._url += path
         
 
-    @cherrypy.tools.json_out()
-    def GET(self, token = None,tag = "json"):
-        try:
-            token = uuid.UUID(token)
-            jsonData = database.getData(token)
-            return jsonData
-        except:
-            cherrypy.response.status = 404
-            return "Token not found"
-            
+    def GET(self, token = None, action = "json"):
+        if action == "upload":
+            try:
+                key = uuid.UUID(cherrypy.request.headers.get('access-key'))
+                #key = uuid.UUID('3220eb24-e0f8-4b45-a481-638719cbe7f1')
+            except:
+                cherrypy.response.status = 403
+                return "Forbidden"
+            newToken = database.getUploadToken(key, cherrypy.request.remote.ip)
+            if newToken:
+                qrData = self._url + str(newToken) + "/upload"
+                qr = qrcode.make(qrData, box_size = 3)
+                buffer = ioBuffer()
+                qr.save(buffer, format='PNG')
+                cherrypy.response.headers['Content-Type'] = "image/png"
+                #cherrypy.response.headers['Content-Disposition'] = 'attachment; filename="file.png"'
+                return buffer.getvalue()
+            else:
+                cherrypy.response.status = 403
+                return "Forbidden"
+        
+        if action == "json":
+            try:
+                token = uuid.UUID(token)
+                jsonData = database.getData(token)
+            except:
+                cherrypy.response.status = 404
+                return "Token not found"
+            cherrypy.response.headers['Content-Type'] = "application/json"
+            return json.dumps(jsonData)
     
-    def POST(self):
+    def POST(self, token = None, action = "download"):
         rawData = cherrypy.request.body.read(int(cherrypy.request.headers['Content-Length']))
-        jsonData = json.loads(rawData)
+        
+        try:
+            jsonData = json.loads(rawData)
+        except:
+            cherrypy.response.status = 500
+            return "Incorrect input"
+            
+
+        if action == "upload":
+            try:
+                token = uuid.UUID(token)
+            except:
+                cherrypy.response.status = 403
+                return "Incorrect token"
+            if database.putCollectedData(token, jsonData):
+                return "OK"
+            else:
+                cherrypy.response.status = 404
+                return "Token not found"
+        
+        
         try:
             key = uuid.UUID(cherrypy.request.headers.get('access-key'))
         except:
             cherrypy.response.status = 403
             return "Forbidden"
             
-        token = database.putJsonData(key, jsonData, cherrypy.request.remote.ip)
+        token = database.putMasterdata(key, jsonData, cherrypy.request.remote.ip)
         if token != None:
             qrData = self._url + str(token) + "/json"
             qr = qrcode.make(qrData, box_size = 3)
-            #pyqrcode.create(qrData)
             cherrypy.response.headers['Content-Type'] = "image/png"
             buffer = ioBuffer()
             qr.save(buffer, format='PNG')
             return  buffer.getvalue()
-            #return str(token)
         else:
             cherrypy.response.status = 403
             return "Forbidden"
@@ -114,7 +150,8 @@ if __name__ == '__main__':
             'request.dispatch': cherrypy.dispatch.MethodDispatcher(),
             'tools.sessions.on': True,
             'tools.response_headers.on': True,
-            'tools.response_headers.headers': [('Content-Type', 'text/plain')],
+            'tools.encode.debug': True,
+            'tools.encode.text_only': False
         }
     }
     

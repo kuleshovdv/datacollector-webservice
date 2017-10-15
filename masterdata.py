@@ -32,6 +32,11 @@ class MasterData:
         name text NOT NULL,
         advanced_name text,
         unit text);
+        CREATE TABLE IF NOT EXISTS collected
+        (id serial PRIMARY KEY,
+        barcode text NOT NULL,
+        quantity integer NOT NULL,
+        token uuid REFERENCES tokens NOT NULL);
         ''')
         
         if masterKey:
@@ -49,9 +54,7 @@ class MasterData:
         ''')
         self._conn.commit()
         
-        
-    def putJsonData(self, key, jsonData, ipaddr = None):
-        
+    def _checkLimit(self, key):
         self._cur.execute('''SELECT v2.*, v1.count FROM
         (SELECT key, count(tokens) 
          FROM tokens 
@@ -69,11 +72,15 @@ class MasterData:
                 if tokensCount == None:
                     tokensCount = 0 
                 if tokensCount >= checkLimit[1]:
-                    return None
-                    # -- limit 
+                    return False  # -- limit 
         else:
+            return False  # -- no key 
+        return True
+
+        
+    def putMasterdata(self, key, jsonData, ipaddr = None):
+        if not self._checkLimit(key):
             return None
-            # -- no key 
             
         token = uuid.uuid4()
         
@@ -81,8 +88,8 @@ class MasterData:
                           (token, key, ipaddr, 0))
         
         for item in jsonData:
-            datalist = list(item.values())
-            datalist.insert(0, token)
+            #datalist = list(item.values())
+            #datalist.insert(0, token)
             self._cur.execute('''INSERT INTO masterdata (token, barcode, name, advanced_name, unit) 
                                  VALUES (%s, %s, %s, %s, %s);''' ,
                               (token,
@@ -94,6 +101,23 @@ class MasterData:
         self._conn.commit()
         return token
         
+        
+    def putCollectedData(self, token, jsonData):
+        self._cur.execute("SELECT type FROM tokens WHERE token = %s AND type = 1;", [token])
+        chekToken = self._cur.fetchone()
+        if chekToken:
+            for item in jsonData:
+                self._cur.execute('''INSERT INTO collected (token, barcode, quantity)
+                                     VALUES (%s, %s, %s);''',
+                                     (token,
+                                      item.get("barcode"),
+                                      item.get("quantity")
+                                         ))
+            self._cur.execute("UPDATE tokens SET type = 2 WHERE token = %s;", [token])
+            self._conn.commit()
+            return True
+        else:
+            return False
         
     def getData(self, token):
         self._cur.execute("SELECT barcode, name, advanced_name, unit FROM masterdata WHERE token = %s;", [token])
@@ -108,3 +132,14 @@ class MasterData:
             barcodeData.append(barcodeItem)
 
         return barcodeData
+    
+    
+    def getUploadToken(self, key, ipaddr = None):
+        if not self._checkLimit(key):
+            return None
+        token = uuid.uuid4()
+        self._cur.execute('''INSERT INTO tokens (token, key, ipaddr, type)
+                             VALUES (%s, %s, %s, 1);''',
+                             (token, key, ipaddr))
+        self._conn.commit()
+        return token
