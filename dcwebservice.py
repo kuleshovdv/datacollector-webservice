@@ -12,6 +12,9 @@ try:
 except ImportError:
     from io import BytesIO as ioBuffer
 
+error404 = "Token not found"
+error403 = "Forbidden"
+error500 = "Incorrect input"
 
 @cherrypy.expose
 class DataCollectorService(object):
@@ -33,27 +36,38 @@ class DataCollectorService(object):
                 #key = uuid.UUID('3220eb24-e0f8-4b45-a481-638719cbe7f1')
             except:
                 cherrypy.response.status = 403
-                return "Forbidden"
-            newToken = database.getUploadToken(key, cherrypy.request.remote.ip)
-            if newToken:
-                qrData = self._url + str(newToken) + "/upload"
-                qr = qrcode.make(qrData, box_size = 3)
-                buffer = ioBuffer()
-                qr.save(buffer, format='PNG')
-                cherrypy.response.headers['Content-Type'] = "image/png"
-                #cherrypy.response.headers['Content-Disposition'] = 'attachment; filename="file.png"'
-                return buffer.getvalue()
+                return error403
+            if token == "new":
+                newToken = database.getUploadToken(key, cherrypy.request.remote.ip)
+                if newToken:
+                    qrData = self._url + str(newToken) + "/upload"
+                    qr = qrcode.make(qrData, box_size = 3)
+                    buffer = ioBuffer()
+                    qr.save(buffer, format='PNG')
+                    cherrypy.response.headers['Token'] = str(newToken)
+                    cherrypy.response.headers['Content-Type'] = "image/png"
+                    #cherrypy.response.headers['Content-Disposition'] = 'attachment; filename="file.png"'
+                    return buffer.getvalue()
+                else:
+                    cherrypy.response.status = 403
+                    return error403
             else:
-                cherrypy.response.status = 403
-                return "Forbidden"
+                try:
+                    token = uuid.UUID(token)
+                    collectedData = database.getCollectedData(token)
+                except:
+                    cherrypy.response.status = 404
+                    return error404
+                cherrypy.response.headers['Content-Type'] = "application/json"
+                return json.dumps(collectedData)
         
         if action == "json":
             try:
                 token = uuid.UUID(token)
-                jsonData = database.getData(token)
+                jsonData = database.getMasterData(token)
             except:
                 cherrypy.response.status = 404
-                return "Token not found"
+                return error404
             cherrypy.response.headers['Content-Type'] = "application/json"
             return json.dumps(jsonData)
     
@@ -64,7 +78,7 @@ class DataCollectorService(object):
             jsonData = json.loads(rawData)
         except:
             cherrypy.response.status = 500
-            return "Incorrect input"
+            return error500
             
 
         if action == "upload":
@@ -72,12 +86,12 @@ class DataCollectorService(object):
                 token = uuid.UUID(token)
             except:
                 cherrypy.response.status = 403
-                return "Incorrect token"
+                return error403
             if database.putCollectedData(token, jsonData):
                 return "OK"
             else:
                 cherrypy.response.status = 404
-                return "Token not found"
+                return error404
         
         
         try:
@@ -96,7 +110,7 @@ class DataCollectorService(object):
             return  buffer.getvalue()
         else:
             cherrypy.response.status = 403
-            return "Forbidden"
+            return error403
 
 
 
@@ -150,7 +164,7 @@ if __name__ == '__main__':
             'request.dispatch': cherrypy.dispatch.MethodDispatcher(),
             'tools.sessions.on': True,
             'tools.response_headers.on': True,
-            'tools.encode.debug': True,
+            #'tools.encode.debug': True,
             'tools.encode.text_only': False
         }
     }

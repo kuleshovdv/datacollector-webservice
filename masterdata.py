@@ -118,21 +118,34 @@ class MasterData:
             return True
         else:
             return False
+
         
-    def getData(self, token):
+    def getMasterData(self, token):
         self._cur.execute("SELECT barcode, name, advanced_name, unit FROM masterdata WHERE token = %s;", [token])
         rows = [x for x in self._cur]
         cols = [x[0] for x in self._cur.description]
-        
         barcodeData = []
         for row in rows:
             barcodeItem = {}
             for prop, val in zip(cols, row):
                 barcodeItem[prop] = val
             barcodeData.append(barcodeItem)
-
         return barcodeData
+
     
+    def getCollectedData(self, token):
+        self._cur.execute("SELECT barcode, quantity FROM collected WHERE token = %s;", [token])
+        rows = [x for x in self._cur]
+        cols = [x[0] for x in self._cur.description]
+        collectedData = []
+        for row in rows:
+            collectedItem = {}
+            for prop, val in zip(cols, row):
+                collectedItem[prop] = val
+            collectedData.append(collectedItem)
+        return collectedData
+
+
     
     def getUploadToken(self, key, ipaddr = None):
         if not self._checkLimit(key):
