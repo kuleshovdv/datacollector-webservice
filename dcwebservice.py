@@ -56,8 +56,9 @@ class DataCollectorService(object):
                     token = uuid.UUID(token)
                     collectedData = database.getCollectedData(token)
                 except:
-                    cherrypy.response.status = 404
-                    return error404
+                    cherrypy.response.status = 500
+                    return error500
+                
                 cherrypy.response.headers['Content-Type'] = "application/json"
                 return json.dumps(collectedData)
         
@@ -148,7 +149,11 @@ if __name__ == '__main__':
     url = 'http://localhost'
     path = '/'
     
-    cherrypy.config.update({'server.socket_host': '0.0.0.0'})
+    cherrypy.config.update({'server.socket_host': '0.0.0.0',
+                            'log.access_file': 'access.log',
+                            'log.error_file': 'system.log'})
+
+    
     if 'WEBSERVICE' in config:
         webserviceConfig = config['WEBSERVICE']
         if 'Port' in webserviceConfig: 
@@ -168,12 +173,12 @@ if __name__ == '__main__':
             'tools.encode.text_only': False
         }
     }
-    
+#    ''' comment this block for debuging in Linux
     if platform == "linux" or platform == "linux2":  # run as daemon on Linux
         from cherrypy.process.plugins import Daemonizer
         from cherrypy.process.plugins import PIDFile 
         Daemonizer(cherrypy.engine).subscribe()
         PIDFile(cherrypy.engine, 'webservice.pid').subscribe() # for kill daemon type bash $ kill $(cat webservice.pid)
     
-    
+#    '''
     cherrypy.quickstart(DataCollectorService(url, path), path, conf)

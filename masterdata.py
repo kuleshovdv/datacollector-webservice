@@ -1,6 +1,7 @@
 import psycopg2
 import psycopg2.extras
 import uuid
+from pip._vendor.pyparsing import tokenMap
 
 class MasterData:
     def __init__(self, basename, username, password, host = "localhost", port = 5432):
@@ -19,24 +20,34 @@ class MasterData:
         self._cur.execute('''CREATE TABLE IF NOT EXISTS keys
         (key uuid PRIMARY KEY,
         tokens_limit integer);
+        
         CREATE TABLE IF NOT EXISTS tokens
         (token uuid PRIMARY KEY,
         key uuid REFERENCES keys NOT NULL,
         modtime timestamp DEFAULT current_timestamp,
         ipaddr inet,
         type integer);
+        
         CREATE TABLE IF NOT EXISTS masterdata 
         (id serial PRIMARY KEY,
         token uuid REFERENCES tokens NOT NULL,
         barcode text NOT NULL,
         name text NOT NULL,
         advanced_name text,
-        unit text);
+        unit text,
+        serial boolean);
+        
         CREATE TABLE IF NOT EXISTS collected
         (id serial PRIMARY KEY,
         barcode text NOT NULL,
         quantity integer NOT NULL,
         token uuid REFERENCES tokens NOT NULL);
+        
+        CREATE TABLE IF NOT EXISTS serials
+        (id serial PRIMARY KEY,
+        barcode_id integer REFERENCES collected NOT NULL,
+        serial text NOT NULL,
+        quantity integer NOT NULL);
         ''')
         
         if masterKey:
@@ -90,13 +101,15 @@ class MasterData:
         for item in jsonData:
             #datalist = list(item.values())
             #datalist.insert(0, token)
-            self._cur.execute('''INSERT INTO masterdata (token, barcode, name, advanced_name, unit) 
-                                 VALUES (%s, %s, %s, %s, %s);''' ,
+            self._cur.execute('''INSERT INTO masterdata (token, barcode, name, advanced_name, unit, serial) 
+                                 VALUES (%s, %s, %s, %s, %s, %s);''' ,
                               (token,
                                item.get("barcode"),
                                item.get("name"),
-                               item.get("advanced_name"),
-                               item.get("unit"))
+                               item.get("advanced_name", None),
+                               item.get("unit", None),
+                               item.get("serial", False))
+                               #True) # !!!!!!!!!!! 
                               )
         self._conn.commit()
         return token
@@ -108,11 +121,22 @@ class MasterData:
         if chekToken:
             for item in jsonData:
                 self._cur.execute('''INSERT INTO collected (token, barcode, quantity)
-                                     VALUES (%s, %s, %s);''',
+                                     VALUES (%s, %s, %s)
+                                     RETURNING id;''',
                                      (token,
                                       item.get("barcode"),
                                       item.get("quantity")
                                          ))
+                barcodeId = self._cur.fetchone()[0]
+                serials = item.get("serials", None)
+                if serials != None:
+                    for serial in serials:
+                        self._cur.execute('''INSERT INTO serials (barcode_id, serial, quantity)
+                                             VALUES (%s, %s, %s);''',
+                                             (barcodeId,
+                                              serial.get("serial"),
+                                              serial.get("quantity"))
+                        ) 
             self._cur.execute("UPDATE tokens SET type = 2 WHERE token = %s;", [token])
             self._conn.commit()
             return True
@@ -121,7 +145,7 @@ class MasterData:
 
         
     def getMasterData(self, token):
-        self._cur.execute("SELECT barcode, name, advanced_name, unit FROM masterdata WHERE token = %s;", [token])
+        self._cur.execute("SELECT barcode, name, advanced_name, unit, serial FROM masterdata WHERE token = %s;", [token])
         rows = [x for x in self._cur]
         cols = [x[0] for x in self._cur.description]
         barcodeData = []
@@ -134,17 +158,31 @@ class MasterData:
 
     
     def getCollectedData(self, token):
-        self._cur.execute("SELECT barcode, quantity FROM collected WHERE token = %s;", [token])
-        rows = [x for x in self._cur]
-        cols = [x[0] for x in self._cur.description]
+        self._cur.execute("SELECT barcode_id FROM serials where barcode_id IN (SELECT id FROM collected WHERE token = %s) GROUP BY barcode_id;", [token])
+        serials = self._cur.fetchall()
+        
+        self._cur.execute("SELECT id, barcode, quantity FROM collected WHERE token = %s;", [token])
+        barcodes = self._cur.fetchall()
+        
         collectedData = []
-        for row in rows:
-            collectedItem = {}
-            for prop, val in zip(cols, row):
-                collectedItem[prop] = val
-            collectedData.append(collectedItem)
+        for fetchRow in barcodes:
+            item = {'barcode' : fetchRow[1], 
+                    'quantity' : fetchRow[2]}
+            if (fetchRow[0],) in serials:
+                self._cur.execute("SELECT serial, quantity FROM serials WHERE barcode_id = %s;",(fetchRow[0],)) 
+                rows = [x for x in self._cur]
+                cols = [x[0] for x in self._cur.description]
+                serialData = []
+                for row in rows:
+                    serialItem = {}
+                    for prop, val in zip(cols, row):
+                        serialItem[prop] = val
+                    serialData.append(serialItem)
+                item['serial'] = serialData
+            
+            collectedData.append(item) 
+          
         return collectedData
-
 
     
     def getUploadToken(self, key, ipaddr = None):
