@@ -4,6 +4,6 @@ This is a web service script for connecting a ["Barcode Scanner and Data Collect
 
 This web service implements a simple REST API to transfer master data from your business-application to mobile data collector and load the collected data from mobile data collector into your business-application.
 
-Working on Linex and Windows. PostgreSQL required.
+Working on Linux and Windows. PostgreSQL required.
 
 See details in [Wiki](https://github.com/kuleshovdv/datacollector-webservice/wiki)
