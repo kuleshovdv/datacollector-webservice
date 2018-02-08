@@ -152,7 +152,8 @@ class MasterData:
         for row in rows:
             barcodeItem = {}
             for prop, val in zip(cols, row):
-                barcodeItem[prop] = val
+                if val != None:
+                    barcodeItem[prop] = val
             barcodeData.append(barcodeItem)
         return barcodeData
 
