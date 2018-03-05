@@ -19,7 +19,8 @@ class MasterData:
     def createTable(self, masterKey = None):
         self._cur.execute('''CREATE TABLE IF NOT EXISTS keys
         (key uuid PRIMARY KEY,
-        tokens_limit integer);
+        tokens_limit integer,
+        removeADS boolean);
         
         CREATE TABLE IF NOT EXISTS tokens
         (token uuid PRIMARY KEY,
@@ -51,9 +52,9 @@ class MasterData:
         ''')
         
         if masterKey:
-            self._cur.execute('''INSERT INTO keys (key, tokens_limit) VALUES (%s, 0)
+            self._cur.execute('''INSERT INTO keys (key, tokens_limit, removeADS) VALUES (%s, 0, false)
                                  ON CONFLICT DO NOTHING;
-                                 ''', [masterKey])
+                                 ''', (masterKey,))
         
         self._conn.commit()
         
@@ -197,7 +198,12 @@ class MasterData:
         return token
     
     
-
+    def removeAds(self, token): #it will work only with my cloud key
+        self._cur.execute('''SELECT removeADS FROM keys
+                             WHERE key = (SELECT key FROM tokens
+                             WHERE token = %s)''',
+                             (token,))
+        return self._cur.fetchone()[0] == True
         
         
         
