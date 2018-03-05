@@ -7,6 +7,7 @@ import json
 import qrcode
 import configparser
 from sys import platform
+import hashlib
 try:
     from StringIO import StringIO as ioBuffer
 except ImportError:
@@ -19,7 +20,7 @@ error500 = "Incorrect input"
 @cherrypy.expose
 class DataCollectorService(object):
     
-    def __init__(self, url, path = "/"):
+    def __init__(self, cloudKey, url, path = "/"):
         self._url = url
         port = cherrypy.config.get('server.socket_port')
         if port == None:
@@ -27,6 +28,7 @@ class DataCollectorService(object):
         if port != 80:
             self._url += ":%s" % port
         self._url += path
+        self._cloudKey = cloudKey
         
 
     def GET(self, token = None, action = "json"):
@@ -70,6 +72,20 @@ class DataCollectorService(object):
                 cherrypy.response.status = 404
                 return error404
             cherrypy.response.headers['Content-Type'] = "application/json"
+            m = hashlib.sha256()
+            try:
+                bearer = cherrypy.request.headers.get("X-Authorization")
+                #xAuth = database.buildXAuth(uuid.UUID(bearer), token)
+                m.update(bearer)
+                #db_key = database.getKeyByToken(token)
+                #m.update(str(db_key))
+                m.update(self._cloudKey)
+                #print(db_key)
+            except:
+                #print("---")
+                m.update(str(uuid.uuid4()))
+            
+            cherrypy.response.headers['X-Authorization'] = m.hexdigest() 
             return json.dumps(jsonData)
     
     def POST(self, token = None, action = "download"):
@@ -162,7 +178,15 @@ if __name__ == '__main__':
             url =  webserviceConfig['url']
         if 'Path' in webserviceConfig:
             path = webserviceConfig['Path']
-            
+        if 'cloudKey' in webserviceConfig:
+            cloudKey = webserviceConfig['cloudKey']
+            # This cloud key use for remove ADS when mobile application works with my cloud service
+        else:
+            cloudKey = str(uuid.uuid4())
+            config.set('WEBSERVICE', 'cloudKey', cloudKey)
+            with open('config.ini', 'wb') as configfile:
+                config.write(configfile)
+             
     
     conf = {
         path: {
@@ -173,12 +197,12 @@ if __name__ == '__main__':
             'tools.encode.text_only': False
         }
     }
-#    ''' comment this block for debuging in Linux
+    ''' comment this block for debuging in Linux
     if platform == "linux" or platform == "linux2":  # run as daemon on Linux
         from cherrypy.process.plugins import Daemonizer
         from cherrypy.process.plugins import PIDFile 
         Daemonizer(cherrypy.engine).subscribe()
         PIDFile(cherrypy.engine, 'webservice.pid').subscribe() # for kill daemon type bash $ kill $(cat webservice.pid)
     
-#    '''
-    cherrypy.quickstart(DataCollectorService(url, path), path, conf)
+    '''
+    cherrypy.quickstart(DataCollectorService(cloudKey, url, path), path, conf)
