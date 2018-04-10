@@ -8,14 +8,17 @@ import qrcode
 import configparser
 from sys import platform
 import hashlib
+import csv
 try:
     from StringIO import StringIO as ioBuffer
 except ImportError:
     from io import BytesIO as ioBuffer
 
-error404 = "Token not found"
-error403 = "Forbidden"
-error500 = "Incorrect input"
+httpErrors = {200: "OK",
+          404: "Token not found",
+          403: "Forbidden",
+          500: "Incorrect input"}
+
 
 @cherrypy.expose
 class DataCollectorService(object):
@@ -38,8 +41,9 @@ class DataCollectorService(object):
                 #key = uuid.UUID('3220eb24-e0f8-4b45-a481-638719cbe7f1')
             except:
                 cherrypy.response.status = 403
-                return error403
+                return httpErrors[cherrypy.response.status]
             if token == "new":
+                database = MasterData()
                 newToken = database.getUploadToken(key, cherrypy.request.remote.ip)
                 if newToken:
                     qrData = self._url + str(newToken) + "/upload"
@@ -52,25 +56,43 @@ class DataCollectorService(object):
                     return buffer.getvalue()
                 else:
                     cherrypy.response.status = 403
-                    return error403
+                    return httpErrors[cherrypy.response.status]
             else:
+                database = MasterData()
                 try:
                     token = uuid.UUID(token)
                     collectedData = database.getCollectedData(token)
                 except:
                     cherrypy.response.status = 500
-                    return error500
-                
+                    return httpErrors[cherrypy.response.status]
                 cherrypy.response.headers['Content-Type'] = "application/json"
                 return json.dumps(collectedData)
         
+        if action == "csv":
+            database = MasterData()
+            try:
+                token = uuid.UUID(token)
+                collectedData = database.getCollectedData(token)
+            except:
+                cherrypy.response.status = 500
+                return httpErrors[cherrypy.response.status]
+            cherrypy.response.headers['Content-Type'] = "text/csv"
+            out = ioBuffer()
+            writer = csv.writer(out)
+            writer.writerows([("barcode","quantity")])
+            for row in collectedData:
+                writer.writerows([(row['barcode'], row['quantity'])])
+            cherrypy.response.headers['Content-Length'] = out.len
+            return out.getvalue()
+        
         if action == "json":
+            database = MasterData()
             try:
                 token = uuid.UUID(token)
                 jsonData = database.getMasterData(token)
             except:
                 cherrypy.response.status = 404
-                return error404
+                return httpErrors[cherrypy.response.status]
             cherrypy.response.headers['Content-Type'] = "application/json"
             if database.removeAds(token):
                 m = hashlib.sha256()
@@ -81,38 +103,33 @@ class DataCollectorService(object):
                 except:
                     m.update(str(uuid.uuid4()))
                 cherrypy.response.headers['X-Authorization'] = m.hexdigest() 
-            
             return json.dumps(jsonData)
+
     
     def POST(self, token = None, action = "download"):
         rawData = cherrypy.request.body.read(int(cherrypy.request.headers['Content-Length']))
-        
         try:
             jsonData = json.loads(rawData)
         except:
             cherrypy.response.status = 500
-            return error500
-            
-
+            return httpErrors[cherrypy.response.status]
+        database = MasterData()
         if action == "upload":
             try:
                 token = uuid.UUID(token)
             except:
                 cherrypy.response.status = 403
-                return error403
+                return httpErrors[cherrypy.response.status]
             if database.putCollectedData(token, jsonData):
-                return "OK"
+                return httpErrors[200]
             else:
                 cherrypy.response.status = 404
-                return error404
-        
-        
+                return httpErrors[cherrypy.response.status]
         try:
             key = uuid.UUID(cherrypy.request.headers.get('access-key'))
         except:
             cherrypy.response.status = 403
-            return "Forbidden"
-            
+            return httpErrors[cherrypy.response.status]
         token = database.putMasterdata(key, jsonData, cherrypy.request.remote.ip)
         if token != None:
             qrData = self._url + str(token) + "/json"
@@ -123,7 +140,7 @@ class DataCollectorService(object):
             return  buffer.getvalue()
         else:
             cherrypy.response.status = 403
-            return error403
+            return httpErrors[cherrypy.response.status]
 
 
 
@@ -137,13 +154,6 @@ if __name__ == '__main__':
     config.read('config.ini')
     if 'DATABASE' in config:
         databaseConfig = config['DATABASE']
-        if 'Host' in databaseConfig:
-            databaseHost = databaseConfig['Host']
-        if 'Port' in databaseConfig:
-            databasePort = databaseConfig['Port']
-        databaseName = databaseConfig['BaseName']
-        databaseUser = databaseConfig['UserName']
-        databasePassword = databaseConfig['Password']
         if 'MasterKey' in databaseConfig:
             try:
                 masterKey = uuid.UUID(databaseConfig['MasterKey'])
@@ -153,10 +163,12 @@ if __name__ == '__main__':
         print("Wrong INI file")
         quit()
     
-    database = MasterData(databaseName, databaseUser, databasePassword, databaseHost, databasePort)
+    database = MasterData()
 
     #database.dropTable()  # uncomment this row if you need to clean database
     database.createTable(masterKey)
+    
+    del database
     
     url = 'http://localhost'
     path = '/'
@@ -193,12 +205,12 @@ if __name__ == '__main__':
             'tools.encode.text_only': False
         }
     }
-#    ''' comment this block for debuging in Linux
+    ''' comment this block for debuging in Linux
     if platform == "linux" or platform == "linux2":  # run as daemon on Linux
         from cherrypy.process.plugins import Daemonizer
         from cherrypy.process.plugins import PIDFile 
         Daemonizer(cherrypy.engine).subscribe()
         PIDFile(cherrypy.engine, 'webservice.pid').subscribe() # for kill daemon type bash $ kill $(cat webservice.pid)
     
-#    '''
+    '''
     cherrypy.quickstart(DataCollectorService(cloudKey, url, path), path, conf)

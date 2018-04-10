@@ -1,12 +1,29 @@
 import psycopg2
 import psycopg2.extras
 import uuid
+import configparser
 from pip._vendor.pyparsing import tokenMap
 
 class MasterData:
-    def __init__(self, basename, username, password, host = "localhost", port = 5432):
+    def __init__(self, iniFile = 'config.ini'):
+        databaseHost = 'localhost'
+        databasePort = 5432
+        masterKey = None
+        
+        config = configparser.ConfigParser()
+        config.read(iniFile)
+        if 'DATABASE' in config:
+            databaseConfig = config['DATABASE']
+            if 'Host' in databaseConfig:
+                databaseHost = databaseConfig['Host']
+            if 'Port' in databaseConfig:
+                databasePort = databaseConfig['Port']
+            databaseName = databaseConfig['BaseName']
+            databaseUser = databaseConfig['UserName']
+            databasePassword = databaseConfig['Password']
+        
         psycopg2.extras.register_uuid()
-        self._conn = psycopg2.connect("dbname=%s user=%s password=%s host=%s port=%s" % (basename, username, password, host, port))
+        self._conn = psycopg2.connect("dbname=%s user=%s password=%s host=%s port=%s" % (databaseName, databaseUser, databasePassword, databaseHost, databasePort))
         self._cur = self._conn.cursor()
         
         
@@ -77,6 +94,9 @@ class MasterData:
          WHERE key = %s) AS v2
         ON v1.key = v2.key;''', [key])
         checkLimit = self._cur.fetchone()
+        
+        if checkLimit == None:
+            return False
         
         if len(checkLimit) > 0:
             if checkLimit[1] not in (None, 0):
