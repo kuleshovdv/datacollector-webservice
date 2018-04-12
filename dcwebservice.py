@@ -153,20 +153,16 @@ class DataCollectorService(object):
                 return httpErrors[cherrypy.response.status]
 
         elif action == "csv":
-            #print(rawData)
             try:
                 key = uuid.UUID(cherrypy.request.headers.get('access-key'))
             except:
                 cherrypy.response.status = 403
                 return httpErrors[cherrypy.response.status]
-            if rawData.isEmpty():
+            if not rawData:
                 cherrypy.response.status = 500
                 return httpErrors[cherrypy.response.status]
             data = ioBuffer(rawData)
-            #reader = csv.DictReader(data, delimiter=',')
             reader = csv.DictReader(data)
-            #for line in reader:
-            #    print(line)
             listData = list(reader)
             database = MasterData()
             token = database.putMasterdata(key, listData, cherrypy.request.remote.ip)
