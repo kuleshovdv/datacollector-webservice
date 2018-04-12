@@ -68,7 +68,7 @@ class DataCollectorService(object):
                 cherrypy.response.headers['Content-Type'] = "application/json"
                 return json.dumps(collectedData)
         
-        if action == "csv":
+        elif action == "csv":
             database = MasterData()
             try:
                 token = uuid.UUID(token)
@@ -85,7 +85,7 @@ class DataCollectorService(object):
             cherrypy.response.headers['Content-Length'] = out.len
             return out.getvalue()
         
-        if action == "json":
+        elif action == "json":
             database = MasterData()
             try:
                 token = uuid.UUID(token)
@@ -108,41 +108,76 @@ class DataCollectorService(object):
     
     def POST(self, token = None, action = "download"):
         rawData = cherrypy.request.body.read(int(cherrypy.request.headers['Content-Length']))
-        try:
-            jsonData = json.loads(rawData)
-        except:
-            cherrypy.response.status = 500
-            return httpErrors[cherrypy.response.status]
-        database = MasterData()
+        
+        
         if action == "upload":
+            try:
+                jsonData = json.loads(rawData)
+            except:
+                cherrypy.response.status = 500
+                return httpErrors[cherrypy.response.status]
             try:
                 token = uuid.UUID(token)
             except:
                 cherrypy.response.status = 403
                 return httpErrors[cherrypy.response.status]
+            database = MasterData()
             if database.putCollectedData(token, jsonData):
                 return httpErrors[200]
             else:
                 cherrypy.response.status = 404
                 return httpErrors[cherrypy.response.status]
-        try:
-            key = uuid.UUID(cherrypy.request.headers.get('access-key'))
-        except:
-            cherrypy.response.status = 403
-            return httpErrors[cherrypy.response.status]
-        token = database.putMasterdata(key, jsonData, cherrypy.request.remote.ip)
-        if token != None:
-            qrData = self._url + str(token) + "/json"
-            qr = qrcode.make(qrData, box_size = 3)
-            cherrypy.response.headers['Content-Type'] = "image/png"
-            buffer = ioBuffer()
-            qr.save(buffer, format='PNG')
-            return  buffer.getvalue()
-        else:
-            cherrypy.response.status = 403
-            return httpErrors[cherrypy.response.status]
+            
+        elif action == "download":
+            try:
+                jsonData = json.loads(rawData)
+            except:
+                cherrypy.response.status = 500
+                return httpErrors[cherrypy.response.status]
+            try:
+                key = uuid.UUID(cherrypy.request.headers.get('access-key'))
+            except:
+                cherrypy.response.status = 403
+                return httpErrors[cherrypy.response.status]
+            database = MasterData()
+            token = database.putMasterdata(key, jsonData, cherrypy.request.remote.ip)
+            if token != None:
+                qrData = self._url + str(token) + "/json"
+                qr = qrcode.make(qrData, box_size = 3)
+                cherrypy.response.headers['Content-Type'] = "image/png"
+                buffer = ioBuffer()
+                qr.save(buffer, format='PNG')
+                return  buffer.getvalue()
+            else:
+                cherrypy.response.status = 403
+                return httpErrors[cherrypy.response.status]
 
+        elif action == "csv":
+            print(rawData)
+            try:
+                key = uuid.UUID(cherrypy.request.headers.get('access-key'))
+            except:
+                cherrypy.response.status = 403
+                return httpErrors[cherrypy.response.status]
 
+            data = ioBuffer(rawData)
+            #reader = csv.DictReader(data, delimiter=',')
+            reader = csv.DictReader(data)
+            #for line in reader:
+            #    print(line)
+            listData = list(reader)
+            database = MasterData()
+            token = database.putMasterdata(key, listData, cherrypy.request.remote.ip)
+            if token != None:
+                qrData = self._url + str(token) + "/json"
+                qr = qrcode.make(qrData, box_size = 3)
+                cherrypy.response.headers['Content-Type'] = "image/png"
+                buffer = ioBuffer()
+                qr.save(buffer, format='PNG')
+                return  buffer.getvalue()
+            else:
+                cherrypy.response.status = 403
+                return httpErrors[cherrypy.response.status]
 
             
 if __name__ == '__main__':
