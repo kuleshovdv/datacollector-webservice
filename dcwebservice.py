@@ -102,7 +102,7 @@ class DataCollectorService(object):
                     m.update(self._cloudKey)
                 except:
                     m.update(str(uuid.uuid4()))
-                cherrypy.response.headers['X-Authorization'] = m.hexdigest() 
+                cherrypy.response.headers['X-Authorization'] = m.hexdigest()
             return json.dumps(jsonData)
 
     

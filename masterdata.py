@@ -55,6 +55,11 @@ class MasterData:
         unit text,
         serial boolean);
         
+        CREATE TABLE IF NOT EXISTS serials_valid 
+        (id serial PRIMARY KEY,
+        master integer REFERENCES masterdata (id),
+        serial text NOT NULL);
+        
         CREATE TABLE IF NOT EXISTS collected
         (id serial PRIMARY KEY,
         barcode text NOT NULL,
@@ -122,16 +127,29 @@ class MasterData:
         for item in jsonData:
             #datalist = list(item.values())
             #datalist.insert(0, token)
+            barcode = item.get("barcode")
+            serial = item.get("serial", False)
             self._cur.execute('''INSERT INTO masterdata (token, barcode, name, advanced_name, unit, serial) 
-                                 VALUES (%s, %s, %s, %s, %s, %s);''' ,
+                                 VALUES (%s, %s, %s, %s, %s, %s)
+                                 RETURNING id;''' ,
                               (token,
-                               item.get("barcode"),
+                               barcode,
                                item.get("name"),
                                item.get("advanced_name", None),
                                item.get("unit", None),
-                               item.get("serial", False))
-                               #True) # !!!!!!!!!!! 
+                               serial)
                               )
+            newId = self._cur.fetchone()[0]
+            if serial:
+                try:
+                    serialsValid = item.get("serials_valid")
+                    for serialValid in serialsValid:
+                        self._cur.execute('''INSERT INTO serials_valid (master, serial)
+                                             VALUES (%s, %s);''',
+                                             (newId, serialValid)
+                                         )
+                except:
+                    pass
         self._conn.commit()
         return token
         
@@ -166,7 +184,7 @@ class MasterData:
 
         
     def getMasterData(self, token):
-        self._cur.execute("SELECT barcode, name, advanced_name, unit, serial FROM masterdata WHERE token = %s;", [token])
+        self._cur.execute("SELECT id, barcode, name, advanced_name, unit, serial FROM masterdata WHERE token = %s;", [token])
         rows = [x for x in self._cur]
         cols = [x[0] for x in self._cur.description]
         barcodeData = []
@@ -175,6 +193,19 @@ class MasterData:
             for prop, val in zip(cols, row):
                 if val != None:
                     barcodeItem[prop] = val
+            
+            master = barcodeItem.pop("id")
+            if barcodeItem.get("serial", False):
+                self._cur.execute(''' SELECT serial FROM serials_valid 
+                                      WHERE master = %s;
+                                  ''', [master])
+                serialRows = self._cur.fetchall()
+                serialsValid = []
+                for serialRow in serialRows:
+                    serialsValid.append(serialRow[0])
+                if serialsValid:
+                    barcodeItem["serials_valid"] = serialsValid
+            
             barcodeData.append(barcodeItem)
         return barcodeData
 
