@@ -71,6 +71,11 @@ class MasterData:
         barcode_id integer REFERENCES collected NOT NULL,
         serial text NOT NULL,
         quantity integer NOT NULL);
+        
+        CREATE TABLE IF NOT EXISTS xmlproxy
+        (token uuid PRIMARY KEY,
+        xmldata text NOT NULL,
+        ipaddr inet);
         ''')
         
         if masterKey:
@@ -179,6 +184,35 @@ class MasterData:
             self._cur.execute("UPDATE tokens SET type = 2 WHERE token = %s;", [token])
             self._conn.commit()
             return True
+        else:
+            return False
+        
+        
+    def putXMLdata(self, key, token, rawData, ipaddr):
+        if not self._checkLimit(key):
+            return False
+        self._cur.execute('''INSERT INTO tokens (token, key, ipaddr, type)
+                             VALUES (%s, %s, %s, 11)
+                             ON CONFLICT (token)
+                             DO NOTHING;''',
+                             (token, key, ipaddr))
+        
+        self._cur.execute('''INSERT INTO xmlproxy (token, xmldata, ipaddr)
+                             VALUES (%s, %s, %s)
+                             ON CONFLICT (token) 
+                             DO UPDATE SET
+                             xmldata = %s;''',
+                             (token, rawData, ipaddr, rawData))
+        return True
+    
+    
+    def getXMLdata(self, token):
+        self._cur.execute('''SELECT xmldata FROM xmlproxy
+                             WHERE token = %s;''',
+                             (token,))
+        xmlData = self._cur.fetchone()
+        if xmlData:
+            return xmlData[0]
         else:
             return False
 

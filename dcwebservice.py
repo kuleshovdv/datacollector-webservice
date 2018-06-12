@@ -105,6 +105,16 @@ class DataCollectorService(object):
                 cherrypy.response.headers['X-Authorization'] = m.hexdigest()
             return json.dumps(jsonData)
 
+        elif action == "xml":
+            database = MasterData()
+            xmlData = database.getXMLdata(token)
+            if xmlData:
+                cherrypy.response.headers['Content-Type'] = "application/xml"
+                return xmlData
+            else:
+                cherrypy.response.status = 404
+                return httpErrors[cherrypy.response.status]
+            
     
     def POST(self, token = None, action = "download"):
         rawData = cherrypy.request.body.read(int(cherrypy.request.headers['Content-Length']))
@@ -176,6 +186,29 @@ class DataCollectorService(object):
             else:
                 cherrypy.response.status = 403
                 return httpErrors[cherrypy.response.status]
+            
+        elif action == "xml":
+            try:
+                key = uuid.UUID(cherrypy.request.headers.get('access-key'))
+            except:
+                cherrypy.response.status = 403
+                return httpErrors[cherrypy.response.status]
+            if not rawData:
+                cherrypy.response.status = 500
+                return httpErrors[cherrypy.response.status]
+            database = MasterData()
+            xmlWrite = database.putXMLdata(key, token, rawData, cherrypy.request.remote.ip)
+            if xmlWrite:
+                qrData = self._url + str(token) + "/xml"
+                qr = qrcode.make(qrData, box_size = 3)
+                cherrypy.response.headers['Content-Type'] = "image/png"
+                buffer = ioBuffer()
+                qr.save(buffer, format='PNG')
+                return  buffer.getvalue()
+            else:
+                cherrypy.response.status = 403
+                return httpErrors[cherrypy.response.status]
+            
 
             
 if __name__ == '__main__':
