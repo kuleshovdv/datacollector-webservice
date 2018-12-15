@@ -115,6 +115,16 @@ class DataCollectorService(object):
                 cherrypy.response.status = 404
                 return httpErrors[cherrypy.response.status]
             
+        elif action == "barcode":
+            try:
+                key = uuid.UUID(cherrypy.request.headers.get('access-key'))
+            except:
+                cherrypy.response.status = 403
+                return httpErrors[cherrypy.response.status]
+            database = MasterData()
+            barcodeData = database.getBarcodeInfo(token)
+            return json.dumps(barcodeData)
+            
     
     def POST(self, token = None, action = "download"):
         rawData = cherrypy.request.body.read(int(cherrypy.request.headers['Content-Length']))
@@ -271,12 +281,12 @@ if __name__ == '__main__':
             'tools.encode.text_only': False
         }
     }
-#    ''' comment this block for debuging in Linux
+    ''' comment this block for debuging in Linux
     if platform == "linux" or platform == "linux2":  # run as daemon on Linux
         from cherrypy.process.plugins import Daemonizer
         from cherrypy.process.plugins import PIDFile 
         Daemonizer(cherrypy.engine).subscribe()
         PIDFile(cherrypy.engine, 'webservice.pid').subscribe() # for kill daemon type bash $ kill $(cat webservice.pid)
     
-#    '''
+    '''
     cherrypy.quickstart(DataCollectorService(cloudKey, url, path), path, conf)

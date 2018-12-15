@@ -119,6 +119,22 @@ class MasterData:
             return False  # -- no key 
         return True
 
+
+    def getBarcodeInfo(self, barcode):
+        self._cur.execute('''SELECT DISTINCT name, advanced_name, unit
+        FROM masterdata 
+        WHERE barcode = %s
+        ''', [barcode])
+        rows = [x for x in self._cur]
+        cols = [x[0] for x in self._cur.description]
+        barcodeData = []
+        for row in rows:
+            barcodeItem = {}
+            for prop, val in zip(cols, row):
+                if val != None:
+                    barcodeItem[prop] = val
+            barcodeData.append(barcodeItem)
+        return barcodeData
         
     def putMasterdata(self, key, jsonData, ipaddr = None):
         if not self._checkLimit(key):
