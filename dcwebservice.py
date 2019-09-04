@@ -282,7 +282,7 @@ if __name__ == '__main__':
             'tools.encode.text_only': False
         }
     }
-#    ''' comment this block for debuging in Linux
+#    ''' comment this block for debug in Linux
     if platform == "linux" or platform == "linux2":  # run as daemon on Linux
         from cherrypy.process.plugins import Daemonizer
         from cherrypy.process.plugins import PIDFile 
