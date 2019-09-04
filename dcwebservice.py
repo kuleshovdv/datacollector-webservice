@@ -9,6 +9,7 @@ import configparser
 from sys import platform
 import hashlib
 import csv
+import os
 try:
     from StringIO import StringIO as ioBuffer
 except ImportError:
@@ -228,7 +229,12 @@ if __name__ == '__main__':
     masterKey = None
     
     config = configparser.ConfigParser()
-    config.read('config.ini')
+    runPath = os.path.dirname(os.path.abspath(__file__))
+    if platform == "linux" or platform == "linux2":
+        config.read(runPath + '/config.ini')
+    else:
+        config.read(runPath + '\config.ini')
+    
     if 'DATABASE' in config:
         databaseConfig = config['DATABASE']
         if 'MasterKey' in databaseConfig:
