@@ -299,7 +299,7 @@ if __name__ == '__main__':
         from cherrypy.process.plugins import Daemonizer
         from cherrypy.process.plugins import PIDFile 
         Daemonizer(cherrypy.engine).subscribe()
-        PIDFile(cherrypy.engine, runPath + '/webservice.pid').subscribe() # for kill daemon type bash $ kill $(cat webservice.pid)
+        PIDFile(cherrypy.engine, os.path.join(runPath, 'webservice.pid')).subscribe() # for kill daemon type bash $ kill $(cat webservice.pid)
     
 #    '''
     cherrypy.quickstart(DataCollectorService(cloudKey, url, path, iniFile), path, conf)
