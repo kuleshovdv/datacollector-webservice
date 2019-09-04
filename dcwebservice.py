@@ -7,6 +7,7 @@ import json
 import qrcode
 import configparser
 from sys import platform
+from sys import exit
 import hashlib
 import csv
 import os
@@ -299,3 +300,4 @@ if __name__ == '__main__':
     
 #    '''
     cherrypy.quickstart(DataCollectorService(cloudKey, url, path, iniFile), path, conf)
+    exit(0)
