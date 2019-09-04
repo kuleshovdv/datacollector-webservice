@@ -277,7 +277,7 @@ if __name__ == '__main__':
         else:
             cloudKey = str(uuid.uuid4())
             config.set('WEBSERVICE', 'cloudKey', cloudKey)
-            with open('config.ini', 'wb') as configfile:
+            with open(iniFile, 'wb') as configfile:
                 config.write(configfile)
              
     
@@ -295,7 +295,7 @@ if __name__ == '__main__':
         from cherrypy.process.plugins import Daemonizer
         from cherrypy.process.plugins import PIDFile 
         Daemonizer(cherrypy.engine).subscribe()
-        PIDFile(cherrypy.engine, 'webservice.pid').subscribe() # for kill daemon type bash $ kill $(cat webservice.pid)
+        PIDFile(cherrypy.engine, runPath + '/webservice.pid').subscribe() # for kill daemon type bash $ kill $(cat webservice.pid)
     
 #    '''
     cherrypy.quickstart(DataCollectorService(cloudKey, url, path, iniFile), path, conf)
