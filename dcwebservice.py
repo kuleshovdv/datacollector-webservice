@@ -24,7 +24,7 @@ httpErrors = {200: "OK",
 @cherrypy.expose
 class DataCollectorService(object):
     
-    def __init__(self, cloudKey, url, path = "/"):
+    def __init__(self, cloudKey, url, path, iniFile):
         self._url = url
         port = cherrypy.config.get('server.socket_port')
         if port == None:
@@ -33,6 +33,7 @@ class DataCollectorService(object):
             self._url += ":%s" % port
         self._url += path
         self._cloudKey = cloudKey
+        self.__iniFile = iniFile
         
 
     def GET(self, token = None, action = "json"):
@@ -44,7 +45,7 @@ class DataCollectorService(object):
                 cherrypy.response.status = 403
                 return httpErrors[cherrypy.response.status]
             if token == "new":
-                database = MasterData()
+                database = MasterData(self.__iniFile)
                 newToken = database.getUploadToken(key, cherrypy.request.remote.ip)
                 if newToken:
                     qrData = self._url + str(newToken) + "/upload"
@@ -59,7 +60,7 @@ class DataCollectorService(object):
                     cherrypy.response.status = 403
                     return httpErrors[cherrypy.response.status]
             else:
-                database = MasterData()
+                database = MasterData(self.__iniFile)
                 try:
                     token = uuid.UUID(token)
                     collectedData = database.getCollectedData(token)
@@ -70,7 +71,7 @@ class DataCollectorService(object):
                 return json.dumps(collectedData)
         
         elif action == "csv":
-            database = MasterData()
+            database = MasterData(self.__iniFile)
             try:
                 token = uuid.UUID(token)
                 collectedData = database.getCollectedData(token)
@@ -87,7 +88,7 @@ class DataCollectorService(object):
             return out.getvalue()
         
         elif action == "json":
-            database = MasterData()
+            database = MasterData(self.__iniFile)
             try:
                 token = uuid.UUID(token)
                 jsonData = database.getMasterData(token)
@@ -107,7 +108,7 @@ class DataCollectorService(object):
             return json.dumps(jsonData)
 
         elif action == "xml":
-            database = MasterData()
+            database = MasterData(self.__iniFile)
             xmlData = database.getXMLdata(token)
             if xmlData:
                 cherrypy.response.headers['Content-Type'] = "application/xml"
@@ -122,7 +123,7 @@ class DataCollectorService(object):
             except:
                 cherrypy.response.status = 403
                 return httpErrors[cherrypy.response.status]
-            database = MasterData()
+            database = MasterData(self.__iniFile)
             barcodeData = database.getBarcodeInfo(token)
             cherrypy.response.headers['Content-Type'] = "application/json"
             return json.dumps(barcodeData)
@@ -143,7 +144,7 @@ class DataCollectorService(object):
             except:
                 cherrypy.response.status = 403
                 return httpErrors[cherrypy.response.status]
-            database = MasterData()
+            database = MasterData(self.__iniFile)
             if database.putCollectedData(token, jsonData):
                 return httpErrors[200]
             else:
@@ -161,7 +162,7 @@ class DataCollectorService(object):
             except:
                 cherrypy.response.status = 403
                 return httpErrors[cherrypy.response.status]
-            database = MasterData()
+            database = MasterData(self.__iniFile)
             token = database.putMasterdata(key, jsonData, cherrypy.request.remote.ip)
             if token != None:
                 qrData = self._url + str(token) + "/json"
@@ -186,7 +187,7 @@ class DataCollectorService(object):
             data = ioBuffer(rawData)
             reader = csv.DictReader(data)
             listData = list(reader)
-            database = MasterData()
+            database = MasterData(self.__iniFile)
             token = database.putMasterdata(key, listData, cherrypy.request.remote.ip)
             if token != None:
                 qrData = self._url + str(token) + "/json"
@@ -208,7 +209,7 @@ class DataCollectorService(object):
             if not rawData:
                 cherrypy.response.status = 500
                 return httpErrors[cherrypy.response.status]
-            database = MasterData()
+            database = MasterData(self.__iniFile)
             xmlWrite = database.putXMLdata(key, token, rawData, cherrypy.request.remote.ip)
             if xmlWrite:
                 qrData = self._url + str(token) + "/xml"
@@ -231,9 +232,10 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     runPath = os.path.dirname(os.path.abspath(__file__))
     if platform == "linux" or platform == "linux2":
-        config.read(runPath + '/config.ini')
+        iniFile = runPath + '/config.ini'
     else:
-        config.read(runPath + '\config.ini')
+        iniFile = runPath + '\\config.ini'
+    config.read(iniFile)
     
     if 'DATABASE' in config:
         databaseConfig = config['DATABASE']
@@ -246,7 +248,7 @@ if __name__ == '__main__':
         print("Wrong INI file")
         quit()
     
-    database = MasterData()
+    database = MasterData(iniFile)
 
     #database.dropTable()  # uncomment this row if you need to clean database
     database.createTable(masterKey)
@@ -288,12 +290,12 @@ if __name__ == '__main__':
             'tools.encode.text_only': False
         }
     }
-#    ''' comment this block for debug in Linux
+    ''' comment this block for debug in Linux
     if platform == "linux" or platform == "linux2":  # run as daemon on Linux
         from cherrypy.process.plugins import Daemonizer
         from cherrypy.process.plugins import PIDFile 
         Daemonizer(cherrypy.engine).subscribe()
         PIDFile(cherrypy.engine, 'webservice.pid').subscribe() # for kill daemon type bash $ kill $(cat webservice.pid)
     
-#    '''
-    cherrypy.quickstart(DataCollectorService(cloudKey, url, path), path, conf)
+    '''
+    cherrypy.quickstart(DataCollectorService(cloudKey, url, path, iniFile), path, conf)
