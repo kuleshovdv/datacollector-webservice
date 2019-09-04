@@ -232,10 +232,7 @@ if __name__ == '__main__':
     
     config = configparser.ConfigParser()
     runPath = os.path.dirname(os.path.abspath(__file__))
-    if platform == "linux" or platform == "linux2":
-        iniFile = runPath + '/config.ini'
-    else:
-        iniFile = runPath + '\\config.ini'
+    iniFile = os.path.join(runPath, 'config.ini')
     config.read(iniFile)
     
     if 'DATABASE' in config:
@@ -247,7 +244,13 @@ if __name__ == '__main__':
                 masterKey = None
     else:
         print("Wrong INI file")
-        quit()
+        exit(500)
+    
+    logDir = runPath
+    if 'LOG' in config:
+        logConfig = config['LOG']
+        if 'logdir' in logConfig:
+            logDir = logConfig['logDir'] 
     
     database = MasterData(iniFile)
 
@@ -260,8 +263,8 @@ if __name__ == '__main__':
     path = '/'
     
     cherrypy.config.update({'server.socket_host': '0.0.0.0',
-                            'log.access_file': 'access.log',
-                            'log.error_file': 'system.log'})
+                            'log.access_file': str(os.path.join(logDir, 'access.log')),
+                            'log.error_file': str(os.path.join(logDir, 'system.log'))})
 
     
     if 'WEBSERVICE' in config:
@@ -291,13 +294,13 @@ if __name__ == '__main__':
             'tools.encode.text_only': False
         }
     }
-#    ''' comment this block for debug in Linux
+    ''' comment this block for debug in Linux
     if platform == "linux" or platform == "linux2":  # run as daemon on Linux
         from cherrypy.process.plugins import Daemonizer
         from cherrypy.process.plugins import PIDFile 
         Daemonizer(cherrypy.engine).subscribe()
         PIDFile(cherrypy.engine, runPath + '/webservice.pid').subscribe() # for kill daemon type bash $ kill $(cat webservice.pid)
     
-#    '''
+    '''
     cherrypy.quickstart(DataCollectorService(cloudKey, url, path, iniFile), path, conf)
     exit(0)
