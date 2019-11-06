@@ -82,7 +82,7 @@ class MasterData:
         quantity integer NOT NULL);
         
         CREATE INDEX IF NOT EXISTS idxSerials ON serials 
-                     (barcode_id, token);
+                     (barcode_id);
         
         CREATE TABLE IF NOT EXISTS xmlproxy
         (token uuid PRIMARY KEY,
