@@ -1,7 +1,7 @@
 import psycopg2
 import psycopg2.extras
 import uuid
-import configparser
+from configparser import ConfigParser
 try:
     from pyparsing import tokenMap
 except ImportError:
@@ -13,7 +13,7 @@ class MasterData:
         databasePort = 5432
         masterKey = None
         
-        config = configparser.ConfigParser()
+        config = ConfigParser()
         config.read(iniFile)
         if 'DATABASE' in config:
             databaseConfig = config['DATABASE']
@@ -58,6 +58,9 @@ class MasterData:
         unit text,
         serial boolean);
         
+        CREATE INDEX IF NOT EXISTS idxMasterdata ON masterdata 
+                     (barcode, token);
+        
         CREATE TABLE IF NOT EXISTS serials_valid 
         (id serial PRIMARY KEY,
         master integer REFERENCES masterdata (id),
@@ -69,11 +72,17 @@ class MasterData:
         quantity integer NOT NULL,
         token uuid REFERENCES tokens NOT NULL);
         
+        CREATE INDEX IF NOT EXISTS idxCollected ON collected 
+                     (barcode, token);
+        
         CREATE TABLE IF NOT EXISTS serials
         (id serial PRIMARY KEY,
         barcode_id integer REFERENCES collected NOT NULL,
         serial text NOT NULL,
         quantity integer NOT NULL);
+        
+        CREATE INDEX IF NOT EXISTS idxSerials ON serials 
+                     (barcode_id, token);
         
         CREATE TABLE IF NOT EXISTS xmlproxy
         (token uuid PRIMARY KEY,
