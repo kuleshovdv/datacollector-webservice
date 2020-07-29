@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding:utf-8 -*-
 
 import cherrypy
 from masterdata import MasterData
@@ -6,6 +7,9 @@ import uuid
 import json
 import qrcode
 import configparser
+import requests
+import threading
+import time
 from sys import platform
 from sys import exit
 import hashlib
@@ -36,8 +40,19 @@ class DataCollectorService(object):
         self._cloudKey = cloudKey
         self.__iniFile = iniFile
         
-
-    def GET(self, token = None, action = "json"):
+    def _webhook(self, webhook, token):
+        whTry = 3
+        while whTry > 0:
+            if requests.get(webhook, 
+                            params={
+                                'token' : token
+                                },
+                            stream = True).status_code == 200:
+                break
+            whTry -= 1
+            time.sleep(2)
+        
+    def GET(self, token = None, action = "json", **params):
         if action == "upload":
             try:
                 key = uuid.UUID(cherrypy.request.headers.get('access-key'))
@@ -47,7 +62,11 @@ class DataCollectorService(object):
                 return httpErrors[cherrypy.response.status]
             if token == "new":
                 database = MasterData(self.__iniFile)
-                newToken = database.getUploadToken(key, cherrypy.request.remote.ip)
+                try:
+                    webhook = params['webhook']
+                except:
+                    webhook = None
+                newToken = database.getUploadToken(key, cherrypy.request.remote.ip, webhook)
                 if newToken:
                     qrData = self._url + str(newToken) + "/upload"
                     qr = qrcode.make(qrData, box_size = 3)
@@ -132,8 +151,6 @@ class DataCollectorService(object):
     
     def POST(self, token = None, action = "download"):
         rawData = cherrypy.request.body.read(int(cherrypy.request.headers['Content-Length']))
-        
-        
         if action == "upload":
             try:
                 jsonData = json.loads(rawData)
@@ -146,7 +163,12 @@ class DataCollectorService(object):
                 cherrypy.response.status = 403
                 return httpErrors[cherrypy.response.status]
             database = MasterData(self.__iniFile)
-            if database.putCollectedData(token, jsonData):
+            webhook = database.putCollectedData(token, jsonData)
+            cherrypy.response.headers['Content-Type'] = 'plain/text;charset=utf-8'
+            if webhook != None:
+                if webhook != "":
+                    webhookThread = threading.Thread(target=self._webhook, args=(webhook, token))
+                    webhookThread.start()
                 return httpErrors[200]
             else:
                 cherrypy.response.status = 404
