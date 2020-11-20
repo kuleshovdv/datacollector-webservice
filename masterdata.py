@@ -82,6 +82,7 @@ class MasterData:
         (id serial PRIMARY KEY,
         barcode_id integer REFERENCES collected NOT NULL,
         serial text NOT NULL,
+        gs1code text,
         quantity integer NOT NULL);
         
         CREATE INDEX IF NOT EXISTS idxSerials ON serials 
@@ -204,12 +205,14 @@ class MasterData:
                                          ))
                 barcodeId = self._cur.fetchone()[0]
                 serials = item.get("serials", None)
+                print serials
                 if serials != None:
                     for serial in serials:
-                        self._cur.execute('''INSERT INTO serials (barcode_id, serial, quantity)
-                                             VALUES (%s, %s, %s);''',
+                        self._cur.execute('''INSERT INTO serials (barcode_id, serial, gs1code, quantity)
+                                             VALUES (%s, %s, %s, %s);''',
                                              (barcodeId,
                                               serial.get("serial"),
+                                              serial.get("gs1code"),
                                               serial.get("quantity"))
                         ) 
             self._cur.execute("UPDATE tokens SET type = 2 WHERE token = %s;", [token])
@@ -290,7 +293,7 @@ class MasterData:
             item = {'barcode' : fetchRow[1], 
                     'quantity' : fetchRow[2]}
             if (fetchRow[0],) in serials:
-                self._cur.execute("SELECT serial, quantity FROM serials WHERE barcode_id = %s;",(fetchRow[0],)) 
+                self._cur.execute("SELECT serial, gs1code, quantity FROM serials WHERE barcode_id = %s;",(fetchRow[0],)) 
                 rows = [x for x in self._cur]
                 cols = [x[0] for x in self._cur.description]
                 serialData = []
