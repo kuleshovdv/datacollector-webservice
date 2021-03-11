@@ -127,15 +127,6 @@ class DataCollectorService(object):
                 cherrypy.response.headers['X-Authorization'] = m.hexdigest()
             return json.dumps(jsonData)
 
-        elif action == "xml":
-            database = MasterData(self.__iniFile)
-            xmlData = database.getXMLdata(token)
-            if xmlData:
-                cherrypy.response.headers['Content-Type'] = "application/xml"
-                return xmlData
-            else:
-                cherrypy.response.status = 404
-                return httpErrors[cherrypy.response.status]
             
         elif action == "barcode":
             try:
@@ -147,6 +138,10 @@ class DataCollectorService(object):
             barcodeData = database.getBarcodeInfo(token)
             cherrypy.response.headers['Content-Type'] = "application/json"
             return json.dumps(barcodeData)
+        
+        else:
+            herrypy.response.status = 404
+            return httpErrors[cherrypy.response.status]    
             
     
     def POST(self, token = None, action = "download"):
@@ -222,28 +217,9 @@ class DataCollectorService(object):
             else:
                 cherrypy.response.status = 403
                 return httpErrors[cherrypy.response.status]
-            
-        elif action == "xml":
-            try:
-                key = uuid.UUID(cherrypy.request.headers.get('access-key'))
-            except:
-                cherrypy.response.status = 403
-                return httpErrors[cherrypy.response.status]
-            if not rawData:
-                cherrypy.response.status = 500
-                return httpErrors[cherrypy.response.status]
-            database = MasterData(self.__iniFile)
-            xmlWrite = database.putXMLdata(key, token, rawData, cherrypy.request.remote.ip)
-            if xmlWrite:
-                qrData = self._url + str(token) + "/xml"
-                qr = qrcode.make(qrData, box_size = 3)
-                cherrypy.response.headers['Content-Type'] = "image/png"
-                buffer = ioBuffer()
-                qr.save(buffer, format='PNG')
-                return  buffer.getvalue()
-            else:
-                cherrypy.response.status = 403
-                return httpErrors[cherrypy.response.status]
+        else:
+            cherrypy.response.status = 404
+            return httpErrors[cherrypy.response.status]    
             
 
             
@@ -316,13 +292,13 @@ if __name__ == '__main__':
             'tools.encode.text_only': False
         }
     }
-#    ''' comment this block for debug in Linux
+    ''' comment this block for debug in Linux
     if platform == "linux" or platform == "linux2":  # run as daemon on Linux
         from cherrypy.process.plugins import Daemonizer
         from cherrypy.process.plugins import PIDFile 
         Daemonizer(cherrypy.engine).subscribe()
         PIDFile(cherrypy.engine, os.path.join(runPath, 'webservice.pid')).subscribe() # for kill daemon type bash $ kill $(cat webservice.pid)
     
-#    '''
+    '''
     cherrypy.quickstart(DataCollectorService(cloudKey, url, path, iniFile), path, conf)
     exit(0)

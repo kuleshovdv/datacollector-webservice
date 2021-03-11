@@ -59,7 +59,11 @@ class MasterData:
         name text NOT NULL,
         advanced_name text,
         unit text,
-        serial boolean);
+        serial boolean DEFAULT false,
+        weightControl boolean DEFAULT false,
+        weightUnit text,
+        weightTare integer DEFAULT 0,
+        weightFull integer DEFAULT 0);
         
         CREATE INDEX IF NOT EXISTS idxMasterdata ON masterdata 
                      (barcode, token);
@@ -73,7 +77,8 @@ class MasterData:
         (id serial PRIMARY KEY,
         barcode text NOT NULL,
         quantity integer NOT NULL,
-        token uuid REFERENCES tokens NOT NULL);
+        token uuid REFERENCES tokens NOT NULL,
+        weight integer);
         
         CREATE INDEX IF NOT EXISTS idxCollected ON collected 
                      (barcode, token);
@@ -87,11 +92,6 @@ class MasterData:
         
         CREATE INDEX IF NOT EXISTS idxSerials ON serials 
                      (barcode_id);
-        
-        CREATE TABLE IF NOT EXISTS xmlproxy
-        (token uuid PRIMARY KEY,
-        xmldata text NOT NULL,
-        ipaddr inet);
         ''')
         
         if masterKey:
@@ -166,15 +166,19 @@ class MasterData:
             #datalist.insert(0, token)
             barcode = item.get("barcode")
             serial = item.get("serial", False)
-            self._cur.execute('''INSERT INTO masterdata (token, barcode, name, advanced_name, unit, serial) 
-                                 VALUES (%s, %s, %s, %s, %s, %s)
+            self._cur.execute('''INSERT INTO masterdata (token, barcode, name, advanced_name, unit, serial, weightControl, weightUnit, weightTare, weightFull) 
+                                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                  RETURNING id;''' ,
                               (token,
                                barcode,
                                item.get("name"),
                                item.get("advanced_name", None),
                                item.get("unit", None),
-                               serial)
+                               serial,
+                               item.get("weightControl", False),
+                               item.get("weightUnit", ""),
+                               item.get("weightTare", 0),
+                               item.get("weightFull", 0))
                               )
             newId = self._cur.fetchone()[0]
             if serial:
@@ -196,12 +200,13 @@ class MasterData:
         chekToken = self._cur.fetchone()
         if chekToken:
             for item in jsonData:
-                self._cur.execute('''INSERT INTO collected (token, barcode, quantity)
+                self._cur.execute('''INSERT INTO collected (token, barcode, quantity, weight)
                                      VALUES (%s, %s, %s)
                                      RETURNING id;''',
                                      (token,
                                       item.get("barcode"),
-                                      item.get("quantity")
+                                      item.get("quantity"),
+                                      item.get("weight")
                                          ))
                 barcodeId = self._cur.fetchone()[0]
                 serials = item.get("serials", None)
@@ -224,38 +229,9 @@ class MasterData:
         else:
             return None
         
-        
-    def putXMLdata(self, key, token, rawData, ipaddr):
-        if not self._checkLimit(key):
-            return False
-        self._cur.execute('''INSERT INTO tokens (token, key, ipaddr, type)
-                             VALUES (%s, %s, %s, 11)
-                             ON CONFLICT (token)
-                             DO NOTHING;''',
-                             (token, key, ipaddr))
-        
-        self._cur.execute('''INSERT INTO xmlproxy (token, xmldata, ipaddr)
-                             VALUES (%s, %s, %s)
-                             ON CONFLICT (token) 
-                             DO UPDATE SET
-                             xmldata = %s;''',
-                             (token, rawData, ipaddr, rawData))
-        return True
-    
-    
-    def getXMLdata(self, token):
-        self._cur.execute('''SELECT xmldata FROM xmlproxy
-                             WHERE token = %s;''',
-                             (token,))
-        xmlData = self._cur.fetchone()
-        if xmlData:
-            return xmlData[0]
-        else:
-            return False
 
-        
     def getMasterData(self, token):
-        self._cur.execute("SELECT id, barcode, name, advanced_name, unit, serial FROM masterdata WHERE token = %s;", [token])
+        self._cur.execute("SELECT id, barcode, name, advanced_name, unit, serial, weightControl, weightUnit, weightTare, weightFull FROM masterdata WHERE token = %s;", [token])
         rows = [x for x in self._cur]
         cols = [x[0] for x in self._cur.description]
         barcodeData = []
@@ -285,13 +261,14 @@ class MasterData:
         self._cur.execute("SELECT barcode_id FROM serials where barcode_id IN (SELECT id FROM collected WHERE token = %s) GROUP BY barcode_id;", [token])
         serials = self._cur.fetchall()
         
-        self._cur.execute("SELECT id, barcode, quantity FROM collected WHERE token = %s;", [token])
+        self._cur.execute("SELECT id, barcode, quantity, weight FROM collected WHERE token = %s;", [token])
         barcodes = self._cur.fetchall()
         
         collectedData = []
         for fetchRow in barcodes:
             item = {'barcode' : fetchRow[1], 
-                    'quantity' : fetchRow[2]}
+                    'quantity' : fetchRow[2],
+                    'weight' : fetchRow[3]}
             if (fetchRow[0],) in serials:
                 self._cur.execute("SELECT serial, gs1code, quantity FROM serials WHERE barcode_id = %s;",(fetchRow[0],)) 
                 rows = [x for x in self._cur]
