@@ -292,13 +292,13 @@ if __name__ == '__main__':
             'tools.encode.text_only': False
         }
     }
-    ''' comment this block for debug in Linux
+#    ''' comment this block for debug in Linux
     if platform == "linux" or platform == "linux2":  # run as daemon on Linux
         from cherrypy.process.plugins import Daemonizer
         from cherrypy.process.plugins import PIDFile 
         Daemonizer(cherrypy.engine).subscribe()
         PIDFile(cherrypy.engine, os.path.join(runPath, 'webservice.pid')).subscribe() # for kill daemon type bash $ kill $(cat webservice.pid)
     
-    '''
+#    '''
     cherrypy.quickstart(DataCollectorService(cloudKey, url, path, iniFile), path, conf)
     exit(0)

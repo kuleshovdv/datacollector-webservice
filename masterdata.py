@@ -3,6 +3,7 @@
 import psycopg2
 import psycopg2.extras
 import uuid
+import json
 from configparser import ConfigParser
 try:
     from pyparsing import tokenMap
@@ -63,7 +64,8 @@ class MasterData:
         weightControl boolean DEFAULT false,
         weightUnit text,
         weightTare integer DEFAULT 0,
-        weightFull integer DEFAULT 0);
+        weightFull integer DEFAULT 0,
+        extraInfo text);
         
         CREATE INDEX IF NOT EXISTS idxMasterdata ON masterdata 
                      (barcode, token);
@@ -166,8 +168,13 @@ class MasterData:
             #datalist.insert(0, token)
             barcode = item.get("barcode")
             serial = item.get("serial", False)
-            self._cur.execute('''INSERT INTO masterdata (token, barcode, name, advanced_name, unit, serial, weightControl, weightUnit, weightTare, weightFull) 
-                                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            extraInfo = item.get("extraInfo")
+            if extraInfo:
+                extra = json.dumps(extraInfo)
+            else:
+                extra = None
+            self._cur.execute('''INSERT INTO masterdata (token, barcode, name, advanced_name, unit, serial, weightControl, weightUnit, weightTare, weightFull, extraInfo) 
+                                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                  RETURNING id;''' ,
                               (token,
                                barcode,
@@ -178,7 +185,8 @@ class MasterData:
                                item.get("weightControl", False),
                                item.get("weightUnit", ""),
                                item.get("weightTare", 0),
-                               item.get("weightFull", 0))
+                               item.get("weightFull", 0),
+                               extra)
                               )
             newId = self._cur.fetchone()[0]
             if serial:
@@ -201,7 +209,7 @@ class MasterData:
         if chekToken:
             for item in jsonData:
                 self._cur.execute('''INSERT INTO collected (token, barcode, quantity, weight)
-                                     VALUES (%s, %s, %s)
+                                     VALUES (%s, %s, %s, %s)
                                      RETURNING id;''',
                                      (token,
                                       item.get("barcode"),
@@ -231,7 +239,7 @@ class MasterData:
         
 
     def getMasterData(self, token):
-        self._cur.execute("SELECT id, barcode, name, advanced_name, unit, serial, weightControl, weightUnit, weightTare, weightFull FROM masterdata WHERE token = %s;", [token])
+        self._cur.execute("SELECT id, barcode, name, advanced_name, unit, serial, weightControl, weightUnit, weightTare, weightFull, extraInfo FROM masterdata WHERE token = %s;", [token])
         rows = [x for x in self._cur]
         cols = [x[0] for x in self._cur.description]
         barcodeData = []
@@ -239,7 +247,10 @@ class MasterData:
             barcodeItem = {}
             for prop, val in zip(cols, row):
                 if val != None:
-                    barcodeItem[prop] = val
+                    if prop == "extrainfo":
+                        barcodeItem[prop] = json.loads(val)
+                    else:
+                        barcodeItem[prop] = val
             
             master = barcodeItem.pop("id")
             if barcodeItem.get("serial", False):
