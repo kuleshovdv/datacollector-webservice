@@ -54,13 +54,12 @@ class DataCollectorService(object):
         
     def GET(self, token = None, action = "json", **params):
         if action == "upload":
-            try:
-                key = uuid.UUID(cherrypy.request.headers.get('access-key'))
-                #key = uuid.UUID('3220eb24-e0f8-4b45-a481-638719cbe7f1')
-            except:
-                cherrypy.response.status = 403
-                return httpErrors[cherrypy.response.status]
             if token == "new":
+                try:
+                    key = uuid.UUID(cherrypy.request.headers.get('access-key'))
+                except:
+                    cherrypy.response.status = 403
+                    return httpErrors[cherrypy.response.status]
                 database = MasterData(self.__iniFile)
                 try:
                     webhook = params['webhook']
