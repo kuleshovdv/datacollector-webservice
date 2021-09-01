@@ -87,7 +87,7 @@ class DataCollectorService(object):
                     cherrypy.response.status = 500
                     return httpErrors[cherrypy.response.status]
                 cherrypy.response.headers['Content-Type'] = "application/json"
-                return json.dumps(collectedData)
+                return json.dumps(collectedData, ensure_ascii=False)
         
         elif action == "csv":
             database = MasterData(self.__iniFile)
@@ -124,7 +124,7 @@ class DataCollectorService(object):
                 except:
                     m.update(str(uuid.uuid4()))
                 cherrypy.response.headers['X-Authorization'] = m.hexdigest()
-            return json.dumps(jsonData)
+            return json.dumps(jsonData, ensure_ascii=False)
 
             
         elif action == "barcode":
@@ -136,7 +136,7 @@ class DataCollectorService(object):
             database = MasterData(self.__iniFile)
             barcodeData = database.getBarcodeInfo(token)
             cherrypy.response.headers['Content-Type'] = "application/json"
-            return json.dumps(barcodeData)
+            return json.dumps(barcodeData, ensure_ascii=False)
         
         else:
             herrypy.response.status = 404
