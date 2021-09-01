@@ -68,7 +68,9 @@ class MasterData:
         extraInfo text);
         
         CREATE INDEX IF NOT EXISTS idxMasterdata ON masterdata 
-                     (barcode, token);
+                     (token);
+        CREATE INDEX IF NOT EXISTS idxBarcodes ON masterdata 
+                     (barcode);
         
         CREATE TABLE IF NOT EXISTS serials_valid 
         (id serial PRIMARY KEY,
@@ -83,7 +85,7 @@ class MasterData:
         weight integer);
         
         CREATE INDEX IF NOT EXISTS idxCollected ON collected 
-                     (barcode, token);
+                     (token);
         
         CREATE TABLE IF NOT EXISTS serials
         (id serial PRIMARY KEY,
