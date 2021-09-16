@@ -220,7 +220,6 @@ class MasterData:
                                          ))
                 barcodeId = self._cur.fetchone()[0]
                 serials = item.get("serials", None)
-                print serials
                 if serials != None:
                     for serial in serials:
                         self._cur.execute('''INSERT INTO serials (barcode_id, serial, gs1code, quantity)
