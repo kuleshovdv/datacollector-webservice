@@ -7,6 +7,7 @@ import uuid
 import json
 import qrcode
 import configparser
+from distutils.util import strtobool
 import requests
 import threading
 import time
@@ -29,12 +30,12 @@ httpErrors = {200: "OK",
 @cherrypy.expose
 class DataCollectorService(object):
     
-    def __init__(self, cloudKey, url, path, iniFile):
+    def __init__(self, cloudKey, url, path, nginx, iniFile):
         self._url = url
         port = cherrypy.config.get('server.socket_port')
         if port == None:
             port = 8080
-        if port != 80:
+        if port != 80 and port != 443 and not nginx:
             self._url += ":%s" % port
         self._url += path
         self._cloudKey = cloudKey
@@ -264,6 +265,8 @@ if __name__ == '__main__':
     
     url = 'http://localhost'
     path = '/'
+    nginx = False
+    runAsDaemon = False
     
     cherrypy.config.update({'server.socket_host': '0.0.0.0',
                             'log.access_file': str(os.path.join(logDir, 'access.log')),
@@ -281,6 +284,10 @@ if __name__ == '__main__':
         if 'cloudKey' in webserviceConfig:
             cloudKey = webserviceConfig['cloudKey']
             # This cloud key use for remove ADS when mobile application works with my cloud service
+        if 'nginx_deploy' in webserviceConfig:
+            nginx = strtobool(webserviceConfig['nginx_deploy'])
+        if 'run_as_daemon' in webserviceConfig:
+            runAsDaemon = strtobool(webserviceConfig['run_as_daemon'])
         else:
             cloudKey = str(uuid.uuid4())
             config.set('WEBSERVICE', 'cloudKey', cloudKey)
@@ -297,13 +304,12 @@ if __name__ == '__main__':
             'tools.encode.text_only': False
         }
     }
-    ''' comment this block for debug in Linux
-    if platform == "linux" or platform == "linux2":  # run as daemon on Linux
+    
+    if runAsDaemon and (platform == "linux" or platform == "linux2"): # run as daemon only for Linux
         from cherrypy.process.plugins import Daemonizer
         from cherrypy.process.plugins import PIDFile 
         Daemonizer(cherrypy.engine).subscribe()
         PIDFile(cherrypy.engine, os.path.join(runPath, 'webservice.pid')).subscribe() # for kill daemon type bash $ kill $(cat webservice.pid)
-    
-    '''
-    cherrypy.quickstart(DataCollectorService(cloudKey, url, path, iniFile), path, conf)
+        
+    cherrypy.quickstart(DataCollectorService(cloudKey, url, path, nginx, iniFile), path, conf)
     exit(0)

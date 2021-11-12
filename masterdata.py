@@ -5,10 +5,6 @@ import psycopg2.extras
 import uuid
 import json
 from configparser import ConfigParser
-try:
-    from pyparsing import tokenMap
-except ImportError:
-    from pip._vendor.pyparsing import tokenMap
 
 class MasterData:
     def __init__(self, iniFile = 'config.ini'):
