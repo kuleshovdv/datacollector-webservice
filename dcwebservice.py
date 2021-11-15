@@ -146,7 +146,7 @@ class DataCollectorService(object):
             return json.dumps(barcodeData, ensure_ascii=False)
         
         else:
-            herrypy.response.status = 404
+            cherrypy.response.status = 404
             return httpErrors[cherrypy.response.status]    
             
     
