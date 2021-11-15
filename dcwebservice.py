@@ -268,11 +268,6 @@ if __name__ == '__main__':
     nginx = False
     runAsDaemon = False
     
-    cherrypy.config.update({'server.socket_host': '0.0.0.0',
-                            'log.access_file': str(os.path.join(logDir, 'access.log')),
-                            'log.error_file': str(os.path.join(logDir, 'system.log'))})
-
-    
     if 'WEBSERVICE' in config:
         webserviceConfig = config['WEBSERVICE']
         if 'Port' in webserviceConfig: 
@@ -282,8 +277,9 @@ if __name__ == '__main__':
         if 'Path' in webserviceConfig:
             path = webserviceConfig['Path']
         if 'cloudKey' in webserviceConfig:
+            # This cloud key use for remove ADS when mobile application works with my cloud service only
+            # For remove ADS with your service see mobile app menu
             cloudKey = webserviceConfig['cloudKey']
-            # This cloud key use for remove ADS when mobile application works with my cloud service
         if 'nginx_deploy' in webserviceConfig:
             nginx = strtobool(webserviceConfig['nginx_deploy'])
         if 'run_as_daemon' in webserviceConfig:
@@ -293,7 +289,15 @@ if __name__ == '__main__':
             config.set('WEBSERVICE', 'cloudKey', cloudKey)
             with open(iniFile, 'wb') as configfile:
                 config.write(configfile)
-             
+
+
+    cherryConf = {'log.access_file': str(os.path.join(logDir, 'access.log')),
+                  'log.error_file': str(os.path.join(logDir, 'system.log'))}
+    if not nginx:
+        # Make server available for external IP 
+        # not recommended for deploy in Internet 
+        cherryConf['server.socket_host'] = '0.0.0.0'
+    cherrypy.config.update(cherryConf)
     
     conf = {
         path: {
@@ -309,7 +313,8 @@ if __name__ == '__main__':
         from cherrypy.process.plugins import Daemonizer
         from cherrypy.process.plugins import PIDFile 
         Daemonizer(cherrypy.engine).subscribe()
-        PIDFile(cherrypy.engine, os.path.join(runPath, 'webservice.pid')).subscribe() # for kill daemon type bash $ kill $(cat webservice.pid)
+        PIDFile(cherrypy.engine, os.path.join(runPath, 'webservice.pid')).subscribe() 
+        print("For kill daemon type bash $ kill $(cat webservice.pid)")
         
     cherrypy.quickstart(DataCollectorService(cloudKey, url, path, nginx, iniFile), path, conf)
     exit(0)
