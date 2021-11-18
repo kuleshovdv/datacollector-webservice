@@ -112,12 +112,13 @@ class MasterData:
     def _checkLimit(self, key):
         self._cur.execute('''SELECT v2.*, v1.count FROM
         (SELECT key, count(tokens) 
-         FROM tokens 
+         FROM tokens
+         WHERE type>0  
          GROUP BY key) AS v1
         RIGHT OUTER JOIN
         (SELECT key, tokens_limit 
          FROM keys
-         WHERE key = %s AND type>0) AS v2
+         WHERE key = %s) AS v2
         ON v1.key = v2.key;''', [key])
         checkLimit = self._cur.fetchone()
         
