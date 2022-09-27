@@ -22,6 +22,7 @@ except ImportError:
     from io import BytesIO as ioBuffer
 
 httpErrors = {200: "OK",
+          401: "Who are you? Let`s goodbye!",    
           404: "Token not found",
           403: "Forbidden",
           500: "Incorrect input"}
@@ -145,6 +146,24 @@ class DataCollectorService(object):
             cherrypy.response.headers['Content-Type'] = "application/json"
             return json.dumps(barcodeData, ensure_ascii=False)
         
+        elif action == "ads":
+            try:
+                key = cherrypy.request.headers.get('Authorization')
+            except:
+                cherrypy.response.status = 401
+                return httpErrors[cherrypy.response.status]
+            cc = self._cloudKey
+            if self._cloudKey == key:
+                database = MasterData(self.__iniFile)
+                if database.offAds(token):
+                    return
+                else:
+                    cherrypy.response.status = 403
+                    return httpErrors[cherrypy.response.status]
+            else:
+                cherrypy.response.status = 401
+                return httpErrors[cherrypy.response.status]
+
         else:
             cherrypy.response.status = 404
             return httpErrors[cherrypy.response.status]    
@@ -223,6 +242,26 @@ class DataCollectorService(object):
             else:
                 cherrypy.response.status = 403
                 return httpErrors[cherrypy.response.status]
+        
+        elif action == "ads":
+            try:
+                key = cherrypy.request.headers.get('Authorization')
+            except:
+                cherrypy.response.status = 401
+                return httpErrors[cherrypy.response.status]
+            if self._cloudKey == key:
+                try:
+                    jsonData = json.loads(rawData)
+                    database = MasterData(self.__iniFile)
+                    database.stopAds(token, jsonData['deviceId'])
+                    return
+                except:
+                    cherrypy.response.status = 500
+                    return httpErrors[cherrypy.response.status]
+            else:
+                cherrypy.response.status = 401
+                return httpErrors[cherrypy.response.status]
+            
         else:
             cherrypy.response.status = 404
             return httpErrors[cherrypy.response.status]    

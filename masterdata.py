@@ -91,7 +91,14 @@ class MasterData:
         quantity integer NOT NULL);
         
         CREATE INDEX IF NOT EXISTS idxSerials ON serials 
-                     (barcode_id);
+        (barcode_id);
+                     
+        CREATE TABLE IF NOT EXISTS ads_off
+        (token text PRIMARY KEY,
+        device_id text);
+        
+        CREATE INDEX IF NOT EXISTS idxAds ON ads_off
+        (device_id);
         ''')
         
         if masterKey:
@@ -314,5 +321,18 @@ class MasterData:
         return self._cur.fetchone()[0] == True
         
         
-        
+    def stopAds(self, token, deviceId):
+        self._cur.execute('''UPDATE ads_off SET
+                             device_id = %s
+                             WHERE token = %s;''',
+                             (deviceId, token))
+        self._conn.commit()
+        return
+    
+    
+    def offAds(self, deviceId):
+        self._cur.execute('''SELECT token FROM ads_off
+                             WHERE device_id = %s;''',
+                             (deviceId,))
+        return self._cur.fetchone()
         
