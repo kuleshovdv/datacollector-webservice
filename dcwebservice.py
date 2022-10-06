@@ -22,7 +22,8 @@ except ImportError:
     from io import BytesIO as ioBuffer
 
 httpErrors = {200: "OK",
-          401: "Who are you? Let`s goodbye!",    
+          401: "Who are you? Let`s goodbye!",
+          402: "Your access key has been expired",    
           404: "Token not found",
           403: "Forbidden",
           500: "Incorrect input"}
@@ -63,22 +64,25 @@ class DataCollectorService(object):
                     cherrypy.response.status = 403
                     return httpErrors[cherrypy.response.status]
                 database = MasterData(self.__iniFile)
-                try:
-                    webhook = params['webhook']
-                except:
-                    webhook = None
-                newToken = database.getUploadToken(key, cherrypy.request.remote.ip, webhook)
-                if newToken:
-                    qrData = self._url + str(newToken) + "/upload"
-                    qr = qrcode.make(qrData, box_size = 3)
-                    buffer = ioBuffer()
-                    qr.save(buffer, format='PNG')
-                    cherrypy.response.headers['Token'] = str(newToken)
-                    cherrypy.response.headers['Content-Type'] = "image/png"
-                    #cherrypy.response.headers['Content-Disposition'] = 'attachment; filename="file.png"'
-                    return buffer.getvalue()
+                if database.checkLimit(key):
+                    try:
+                        webhook = params['webhook']
+                    except:
+                        webhook = None
+                    newToken = database.getUploadToken(key, cherrypy.request.remote.ip, webhook)
+                    if newToken:
+                        qrData = self._url + str(newToken) + "/upload"
+                        qr = qrcode.make(qrData, box_size = 3)
+                        buffer = ioBuffer()
+                        qr.save(buffer, format='PNG')
+                        cherrypy.response.headers['Token'] = str(newToken)
+                        cherrypy.response.headers['Content-Type'] = "image/png"
+                        return buffer.getvalue()
+                    else:
+                        cherrypy.response.status = 403
+                        return httpErrors[cherrypy.response.status]
                 else:
-                    cherrypy.response.status = 403
+                    cherrypy.response.status = 402
                     return httpErrors[cherrypy.response.status]
             else:
                 database = MasterData(self.__iniFile)
@@ -147,6 +151,7 @@ class DataCollectorService(object):
             return json.dumps(barcodeData, ensure_ascii=False)
         
         elif action == "ads":
+            #
             try:
                 key = cherrypy.request.headers.get('Authorization')
             except:
@@ -163,6 +168,19 @@ class DataCollectorService(object):
             else:
                 cherrypy.response.status = 401
                 return httpErrors[cherrypy.response.status]
+            
+        elif action == "keystat":
+            try:
+                key = uuid.UUID(cherrypy.request.headers.get('access-key'))
+            except:
+                cherrypy.response.status = 403
+                return httpErrors[cherrypy.response.status]
+            database = MasterData(self.__iniFile)
+            stat = database.getKeyStat(key)
+            stat['key'] = str(stat['key'])
+            stat['validTo'] = str(stat['validTo'])
+            cherrypy.response.headers['Content-Type'] = "application/json"
+            return json.dumps(stat)
 
         else:
             cherrypy.response.status = 404
@@ -206,16 +224,20 @@ class DataCollectorService(object):
                 cherrypy.response.status = 403
                 return httpErrors[cherrypy.response.status]
             database = MasterData(self.__iniFile)
-            token = database.putMasterdata(key, jsonData, cherrypy.request.remote.ip)
-            if token != None:
-                qrData = self._url + str(token) + "/json"
-                qr = qrcode.make(qrData, box_size = 3)
-                cherrypy.response.headers['Content-Type'] = "image/png"
-                buffer = ioBuffer()
-                qr.save(buffer, format='PNG')
-                return  buffer.getvalue()
+            if (database.checkLimit(key)):
+                token = database.putMasterdata(key, jsonData, cherrypy.request.remote.ip)
+                if token != None:
+                    qrData = self._url + str(token) + "/json"
+                    qr = qrcode.make(qrData, box_size = 3)
+                    cherrypy.response.headers['Content-Type'] = "image/png"
+                    buffer = ioBuffer()
+                    qr.save(buffer, format='PNG')
+                    return  buffer.getvalue()
+                else:
+                    cherrypy.response.status = 403
+                    return httpErrors[cherrypy.response.status]
             else:
-                cherrypy.response.status = 403
+                cherrypy.response.status = 402
                 return httpErrors[cherrypy.response.status]
 
         elif action == "csv":
@@ -260,6 +282,29 @@ class DataCollectorService(object):
                     return httpErrors[cherrypy.response.status]
             else:
                 cherrypy.response.status = 401
+                return httpErrors[cherrypy.response.status]
+            
+        elif action == "activate":
+            try:
+                key = cherrypy.request.headers.get('access-key')
+                if key:
+                    key = uuid.UUID(key) 
+            except:
+                key = None
+            pin = None
+            try:
+                jsonData = json.loads(rawData)
+                pin = jsonData['pin']
+            except:
+                cherrypy.response.status = 400
+                return httpErrors[cherrypy.response.status]
+            if pin:
+                database = MasterData(self.__iniFile)
+                activation = database.activatePin(key, pin)
+                cherrypy.response.headers['Content-Type'] = "application/json"
+                return json.dumps(activation)
+            else:
+                cherrypy.response.status = 400
                 return httpErrors[cherrypy.response.status]
             
         else:

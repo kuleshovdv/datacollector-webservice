@@ -5,6 +5,8 @@ import psycopg2.extras
 import uuid
 import json
 from configparser import ConfigParser
+from datetime import date
+from dateutil.relativedelta import relativedelta
 
 class MasterData:
     def __init__(self, iniFile = 'config.ini'):
@@ -39,7 +41,8 @@ class MasterData:
         self._cur.execute('''CREATE TABLE IF NOT EXISTS keys
         (key uuid PRIMARY KEY,
         tokens_limit integer,
-        removeADS boolean);
+        removeADS boolean,
+        valid_to date);
         
         CREATE TABLE IF NOT EXISTS tokens
         (token uuid PRIMARY KEY,
@@ -99,6 +102,13 @@ class MasterData:
         
         CREATE INDEX IF NOT EXISTS idxAds ON ads_off
         (device_id);
+        
+        CREATE TABLE IF NOT EXISTS pins
+        (pin varchar(8) PRIMARY KEY,
+        months integer,
+        tokens integer,
+        key uuid REFERENCES keys (key),
+        activated_at date);
         ''')
         
         if masterKey:
@@ -116,33 +126,58 @@ class MasterData:
         ''')
         self._conn.commit()
         
-    def _checkLimit(self, key):
+    def getKeyStat(self, key):
         self._cur.execute('''SELECT v2.*, v1.count FROM
         (SELECT key, count(tokens) 
          FROM tokens
          WHERE type>0  
          GROUP BY key) AS v1
         RIGHT OUTER JOIN
-        (SELECT key, tokens_limit 
+        (SELECT key, tokens_limit, valid_to 
          FROM keys
          WHERE key = %s) AS v2
         ON v1.key = v2.key;''', [key])
-        checkLimit = self._cur.fetchone()
+        stat = self._cur.fetchone()
+        if stat == None:
+            return None
+        else:
+            return {
+                'key' : stat[0],
+                'tokensLimit' : stat[1],
+                'tokensCount' : 0 if stat[3] == None else stat[3],
+                'validTo' : stat[2]
+                }
         
-        if checkLimit == None:
+        if validation == None:
             return False
         
-        if len(checkLimit) > 0:
-            if checkLimit[1] not in (None, 0):
-                tokensCount = checkLimit[2]
-                if tokensCount == None:
-                    tokensCount = 0 
-                if tokensCount >= checkLimit[1]:
-                    return False  # -- limit 
+        if len(validation) > 0:
+            validTo = validation[2]
+            if validTo < date.today():
+                return False # key has been expired
+            else:
+                if validation[1] not in (None, 0):
+                    tokensCount = validation[3]
+                    if tokensCount == None:
+                        tokensCount = 0 
+                    if tokensCount >= validation[1]:
+                        return False  # -- limit 
         else:
             return False  # -- no key 
         return True
 
+        
+    def checkLimit(self, key):
+        validation = self.getKeyStat(key)
+        if validation == None:
+            return False
+        if validation['validTo'] < date.today():
+            return False # key has been expired
+        else:
+            if validation['tokensLimit'] != 0:
+                return validation['tokensCount'] < validation['tokensLimit']
+            else:
+                return True 
 
     def getBarcodeInfo(self, barcode):
         self._cur.execute('''SELECT DISTINCT name, advanced_name, unit
@@ -161,9 +196,6 @@ class MasterData:
         return barcodeData
         
     def putMasterdata(self, key, jsonData, ipaddr = None):
-        if not self._checkLimit(key):
-            return None
-            
         token = uuid.uuid4()
         
         self._cur.execute("INSERT INTO tokens (token, key, ipaddr, type) VALUES (%s, %s, %s, %s);", 
@@ -303,8 +335,6 @@ class MasterData:
 
     
     def getUploadToken(self, key, ipaddr = None, webhook = None):
-        if not self._checkLimit(key):
-            return None
         token = uuid.uuid4()
         self._cur.execute('''INSERT INTO tokens (token, key, ipaddr, type, webhook)
                              VALUES (%s, %s, %s, 1, %s);''',
@@ -335,4 +365,43 @@ class MasterData:
                              WHERE device_id = %s;''',
                              (deviceId,))
         return self._cur.fetchone()
+    
+    
+    def activatePin(self, key, pin):
+        self._cur.execute('''SELECT * FROM pins
+                             WHERE pin = %s AND key IS NULL;''', (pin,))
+        pinRecord = self._cur.fetchone()
+        if pinRecord:
+            pinMonths = pinRecord[1]
+            pinTokens = pinRecord[2]
+            oldDate = date.today()
+            oldTokens = 0
+            if key:
+                self._cur.execute('''SELECT * FROM keys
+                                     WHERE key = %s;''', (key,))
+                keyRecord = self._cur.fetchone()
+                if keyRecord:
+                     oldDate = keyRecord[3] if keyRecord[3] > date.today() else date.today() 
+                     oldTokens = keyRecord[1]
+                     newDate = oldDate + relativedelta(months=pinMonths) 
+                     self._cur.execute('''UPDATE keys SET tokens_limit = %s, valid_to = %s
+                                          WHERE key = %s;''', (oldTokens + pinTokens, newDate, key))
+                else:
+                    # key not found
+                    return {'error' : 'Key %s not found' % key}
+            else:
+                key = uuid.uuid4()
+                self._cur.execute('''INSERT INTO keys (key, tokens_limit, removeADS, valid_to)
+                                     VALUES (%s, %s, true, %s);''', (key, pinTokens, date.today()+relativedelta(months=pinMonths)))
+            self._cur.execute("UPDATE pins SET key = %s, activated_at = %s WHERE pin = %s;", (key, date.today(), pin))
+            self._cur.execute("SELECT * FROM keys WHERE key = %s;", (key, ))
+            newKeyRecord = self._cur.fetchone() 
+            self._conn.commit()
+            return {'key' : str(newKeyRecord[0]),
+                    'tokens_limit' : newKeyRecord[1],
+                    'valid_to' : str(newKeyRecord[3])}
+        else:
+            # Pin not active
+            return {'error' : "Pin %s not valid or has been activated earlier" % pin}
+        
         
