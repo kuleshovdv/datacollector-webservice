@@ -22,6 +22,7 @@ except ImportError:
     from io import BytesIO as ioBuffer
 
 httpErrors = {200: "OK",
+          400: "Wrong request body, RTFM!",
           401: "Who are you? Let`s goodbye!",
           402: "Your access key has been expired",    
           404: "Token not found",
