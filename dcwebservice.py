@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # -*- coding:utf-8 -*-
 
 import cherrypy
@@ -129,10 +129,10 @@ class DataCollectorService(object):
                 m = hashlib.sha256()
                 try:
                     bearer = cherrypy.request.headers.get("X-Authorization")
-                    m.update(bearer)
-                    m.update(self._cloudKey)
+                    m.update(bearer.encode('utf-8'))
+                    m.update(self._cloudKey.encode('utf-8'))
                 except:
-                    m.update(str(uuid.uuid4()))
+                    m.update(str(uuid.uuid4()).encode('utf-8'))
                 cherrypy.response.headers['X-Authorization'] = m.hexdigest()
             try:
                 return json.dumps(jsonData, ensure_ascii=False)
@@ -226,9 +226,9 @@ class DataCollectorService(object):
                 return httpErrors[cherrypy.response.status]
             database = MasterData(self.__iniFile)
             if (database.checkLimit(key)):
-                token = database.putMasterdata(key, jsonData, cherrypy.request.remote.ip)
+                newToken = database.putMasterdata(key, jsonData, cherrypy.request.remote.ip)
                 if token != None:
-                    qrData = self._url + str(token) + "/json"
+                    qrData = self._url + str(newToken) + "/json"
                     qr = qrcode.make(qrData, box_size = 3)
                     cherrypy.response.headers['Content-Type'] = "image/png"
                     buffer = ioBuffer()
