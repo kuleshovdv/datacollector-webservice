@@ -94,10 +94,10 @@ class DataCollectorService(object):
                     cherrypy.response.status = 500
                     return httpErrors[cherrypy.response.status]
                 cherrypy.response.headers['Content-Type'] = "application/json"
-                try:
-                    return json.dumps(collectedData, ensure_ascii=False)
-                except UnicodeDecodeError:
-                    return json.dumps(collectedData)
+#                try:
+#                    return json.dumps(collectedData, ensure_ascii=False)
+#                except UnicodeDecodeError:
+                return json.dumps(collectedData)
         
         elif action == "csv":
             database = MasterData(self.__iniFile)
@@ -227,7 +227,7 @@ class DataCollectorService(object):
             database = MasterData(self.__iniFile)
             if (database.checkLimit(key)):
                 newToken = database.putMasterdata(key, jsonData, cherrypy.request.remote.ip)
-                if token != None:
+                if newToken != None:
                     qrData = self._url + str(newToken) + "/json"
                     qr = qrcode.make(qrData, box_size = 3)
                     cherrypy.response.headers['Content-Type'] = "image/png"
