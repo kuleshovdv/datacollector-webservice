@@ -300,7 +300,14 @@ class MasterData:
                     serialsValid.append(serialRow[0])
                 if serialsValid:
                     barcodeItem["serials_valid"] = serialsValid
-            
+            else:
+                del barcodeItem['serial']
+            if not barcodeItem['weightcontrol']:
+                del barcodeItem['weightcontrol']
+                del barcodeItem['weightunit']
+                del barcodeItem['weighttare']
+                del barcodeItem['weightfull']
+                
             barcodeData.append(barcodeItem)
         return barcodeData
 
