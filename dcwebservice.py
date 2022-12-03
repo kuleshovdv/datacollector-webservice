@@ -19,7 +19,7 @@ import os
 try:
     from StringIO import StringIO as ioBuffer
 except ImportError:
-    from io import BytesIO as ioBuffer
+    from io import StringIO as ioBuffer
 
 httpErrors = {200: "OK",
           400: "Wrong request body, RTFM!",
@@ -113,7 +113,7 @@ class DataCollectorService(object):
             writer.writerows([("barcode","quantity")])
             for row in collectedData:
                 writer.writerows([(row['barcode'], row['quantity'])])
-            cherrypy.response.headers['Content-Length'] = out.len
+            #cherrypy.response.headers['Content-Length'] = out.len
             return out.getvalue()
         
         elif action == "json":
