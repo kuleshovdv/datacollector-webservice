@@ -16,10 +16,8 @@ from sys import exit
 import hashlib
 import csv
 import os
-try:
-    from StringIO import StringIO as ioBuffer
-except ImportError:
-    from io import StringIO as ioBuffer
+from io import BytesIO as ioBuffer
+from io import StringIO as stringBuffer
 
 httpErrors = {200: "OK",
           400: "Wrong request body, RTFM!",
@@ -108,7 +106,7 @@ class DataCollectorService(object):
                 cherrypy.response.status = 500
                 return httpErrors[cherrypy.response.status]
             cherrypy.response.headers['Content-Type'] = "text/csv"
-            out = ioBuffer()
+            out = stringBuffer()
             writer = csv.writer(out)
             writer.writerows([("barcode","quantity")])
             for row in collectedData:
