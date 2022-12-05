@@ -42,7 +42,9 @@ class MasterData:
         (key uuid PRIMARY KEY,
         tokens_limit integer,
         removeADS boolean,
-        valid_to date);
+        valid_to date,
+        renewed boolean,
+        created_at timestamp DEFAULT current_timestamp);
         
         CREATE TABLE IF NOT EXISTS tokens
         (token uuid PRIMARY KEY,
@@ -385,21 +387,20 @@ class MasterData:
             oldTokens = 0
             if key:
                 self._cur.execute('''SELECT * FROM keys
-                                     WHERE key = %s;''', (key,))
+                                     WHERE key = %s AND renewed;''', (key,))
                 keyRecord = self._cur.fetchone()
-                if keyRecord:
-                     oldDate = keyRecord[3] if keyRecord[3] > date.today() else date.today() 
-                     oldTokens = keyRecord[1]
-                     newDate = oldDate + relativedelta(months=pinMonths) 
-                     self._cur.execute('''UPDATE keys SET tokens_limit = %s, valid_to = %s
-                                          WHERE key = %s;''', (oldTokens + pinTokens, newDate, key))
-                else:
-                    # key not found
-                    return {'error' : 'Key %s not found' % key}
             else:
+                keyRecord = None
+            if keyRecord:
+                 oldDate = keyRecord[3] if keyRecord[3] > date.today() else date.today() 
+                 oldTokens = keyRecord[1]
+                 newDate = oldDate + relativedelta(months=pinMonths) 
+                 self._cur.execute('''UPDATE keys SET tokens_limit = %s, valid_to = %s
+                                      WHERE key = %s;''', (oldTokens + pinTokens, newDate, key))
+            else: # key not found or renewed is false -> create and write new key
                 key = uuid.uuid4()
-                self._cur.execute('''INSERT INTO keys (key, tokens_limit, removeADS, valid_to)
-                                     VALUES (%s, %s, true, %s);''', (key, pinTokens, date.today()+relativedelta(months=pinMonths)))
+                self._cur.execute('''INSERT INTO keys (key, tokens_limit, removeADS, valid_to, renewed)
+                                     VALUES (%s, %s, true, %s, true);''', (key, pinTokens, date.today()+relativedelta(months=pinMonths)))    
             self._cur.execute("UPDATE pins SET key = %s, activated_at = %s WHERE pin = %s;", (key, date.today(), pin))
             self._cur.execute("SELECT * FROM keys WHERE key = %s;", (key, ))
             newKeyRecord = self._cur.fetchone() 
