@@ -4,6 +4,6 @@ This is a web service script for connecting a ["Bluetooth Barcode Scanner & Port
 
 This web service implements a simple REST API to transfer master data from your business-application to mobile data collector and load the collected data from mobile data collector into your business-application.
 
-Working on Linux and Windows. PostgreSQL required.
+Working on Linux. Redis is required.
 
 See details in [Wiki](https://github.com/kuleshovdv/datacollector-webservice/wiki)
