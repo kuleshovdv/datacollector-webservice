@@ -6,8 +6,11 @@ import uuid
 import json
 import qrcode
 import configparser
+import datetime
 from distutils.util import strtobool
 import os
+from sys import platform
+from sys import exit
 import redis
 from io import BytesIO as ioBuffer
 
@@ -68,6 +71,13 @@ class DataCollectorService(object):
             else:
                 cherrypy.response.status = 401
                 return httpErrors[cherrypy.response.status]
+        elif action == "keystat":
+            stat = {}
+            stat['key'] = cherrypy.request.headers.get('access-key')
+            stat['validTo'] = str(datetime.date(7658, 5, 17)) 
+            cherrypy.response.headers['Content-Type'] = "application/json"
+            return json.dumps(stat)
+    
         else:
             cherrypy.response.status = 404
             return httpErrors[cherrypy.response.status]
@@ -164,6 +174,14 @@ if __name__ == '__main__':
             'tools.encode.text_only': False
         }
     }
+    
+    if runAsDaemon and (platform == "linux" or platform == "linux2"): # run as daemon only for Linux
+        from cherrypy.process.plugins import Daemonizer
+        from cherrypy.process.plugins import PIDFile 
+        Daemonizer(cherrypy.engine).subscribe()
+        PIDFile(cherrypy.engine, os.path.join(runPath, 'webservice.pid')).subscribe() 
+        print("For kill daemon type bash $ kill $(cat webservice.pid)")
+
     
     cherrypy.quickstart(DataCollectorService(url, accessKey, ttl), path, conf)
     exit(0)
