@@ -54,7 +54,7 @@ class DataCollectorService(object):
                     qrData = "%s/%s/upload" % (self._serviceUrl, newToken)
                     qr = qrcode.make(qrData, box_size = 3)
                     buffer = ioBuffer()
-                    qr.save(buffer, format='PNG')
+                    qr.save(buffer)#, format='PNG')
                     cherrypy.response.headers['Token'] = newToken
                     cherrypy.response.headers['Content-Type'] = "image/png"
                     return buffer.getvalue()
