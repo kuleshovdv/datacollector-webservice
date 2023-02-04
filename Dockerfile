@@ -1,12 +1,13 @@
 FROM python:alpine
 LABEL description="Cloud Datacollector Gate"
 EXPOSE 8080/tcp
-EXPOSE 6379
 RUN apk update && apk upgrade && apk add --no-cache supervisor bash redis
 RUN pip3 install cherrypy redis qrcode configparser
 RUN mkdir -p /etc/supervisord.d
 RUN mkdir -p /var/run/redis/
 RUN mkdir -p /app
+RUN mkdir -p /var/lib/redis
+VOLUME /var/lib/redis
 COPY . /app/
 RUN chmod +x /app/main.py
 # create redis config
@@ -15,6 +16,7 @@ unixsocketperm 777  \n\
 daemonize no  \n\
 supervised auto  \n\
 pidfile /var/run/redis/redis-server.pid  \n\
+dir /var/lib/redis \n\
 save 900 1  \n\
 save 300 10  \n\
 save 60 10000'>> /app/redis.conf
