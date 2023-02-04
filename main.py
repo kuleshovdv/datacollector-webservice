@@ -27,9 +27,9 @@ httpErrors = {200: "OK",
 @cherrypy.tools.json_in()
 class DataCollectorService(object):
     
-    def __init__(self, serviceUrl, accessKey, ttl):
+    def __init__(self, serviceUrl, accessKey, redisSocket, ttl):
         self._serviceUrl = serviceUrl
-        self._redisClient = redis.StrictRedis()
+        self._redisClient = redis.StrictRedis(unix_socket_path = redisSocket)
         self._accessKey = accessKey
         self._redisTtl = ttl
         
@@ -86,7 +86,6 @@ class DataCollectorService(object):
     def POST(self, token = None, action = "download"):
         #rawData = cherrypy.request.body.read(int(cherrypy.request.headers['Content-Length']))
         cherrypy.response.headers['Content-Type'] = "application/json"
-        print({'action':action,'token':token})
         if action == 'download':
             try:
                 requestKey = cherrypy.request.headers.get('access-key')
@@ -103,7 +102,7 @@ class DataCollectorService(object):
                 qrData = "%s/%s/json" % (self._serviceUrl, token)
                 qr = qrcode.make(qrData, box_size = 3)
                 buffer = ioBuffer()
-                qr.save(buffer, format='PNG')
+                qr.save(buffer)#, format='PNG')
                 cherrypy.response.headers['Token'] = token
                 cherrypy.response.headers['Content-Type'] = "image/png"
                 return buffer.getvalue()
@@ -127,6 +126,7 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     runPath = os.path.dirname(os.path.abspath(__file__))
     iniFile = os.path.join(runPath, 'config.ini')
+    redisSocket = '/var/run/redis/redis-server.sock'
     config.read(iniFile)
     url = 'http://localhost:8080'
     path = '/'
@@ -156,6 +156,8 @@ if __name__ == '__main__':
         redisConfig = config['REDIS']
         if 'ttl' in redisConfig:
             ttl = redisConfig['ttl']
+        if 'socket' in redisConfig:
+            redisSocket = redisConfig['socket']
 
 
     cherryConf = {}    
@@ -183,5 +185,5 @@ if __name__ == '__main__':
         print("For kill daemon type bash $ kill $(cat webservice.pid)")
 
     
-    cherrypy.quickstart(DataCollectorService(url, accessKey, ttl), path, conf)
+    cherrypy.quickstart(DataCollectorService(url, accessKey, redisSocket, ttl), path, conf)
     exit(0)
