@@ -5,6 +5,7 @@ import cherrypy
 import uuid
 import json
 import qrcode
+import csv
 import configparser
 import datetime
 from distutils.util import strtobool
@@ -13,6 +14,7 @@ from sys import platform
 from sys import exit
 import redis
 from io import BytesIO as ioBuffer
+from io import StringIO as stringBuffer
 
 httpErrors = {200: "OK",
           400: "Wrong request body, RTFM!",
@@ -71,7 +73,21 @@ class DataCollectorService(object):
             else:
                 cherrypy.response.status = 401
                 return httpErrors[cherrypy.response.status]
-        elif action == "keystat":
+        elif action == 'csv':
+            data = self._redisClient.get(token)
+            if data:
+                collectedData = json.loads(data)
+                cherrypy.response.headers['Content-Type'] = "text/csv"
+                out = stringBuffer()
+                writer = csv.writer(out)
+                writer.writerows([("barcode","quantity")])
+                for row in collectedData:
+                    writer.writerows([(row['barcode'], row['quantity'])])
+                return out.getvalue()    
+            else:
+                cherrypy.response.status = 404
+                return httpErrors[cherrypy.response.status]
+        elif action == 'keystat':
             stat = {}
             stat['key'] = cherrypy.request.headers.get('access-key')
             stat['validTo'] = str(datetime.date(7658, 5, 17)) 
