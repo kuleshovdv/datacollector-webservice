@@ -36,6 +36,7 @@ class DataCollectorService(object):
         self._redisTtl = ttl
         
     def GET(self, token = None, action = "json", **params):
+        print(cherrypy.request.headers.get)
         cherrypy.response.headers['Content-Type'] = "application/json"
         if action == 'json' and token != None:
             data = self._redisClient.get(token)
@@ -127,6 +128,9 @@ class DataCollectorService(object):
                 return httpErrors[cherrypy.response.status]
         elif action == 'upload' and token != None:
             data = cherrypy.request.json
+            for item in data:
+                if 'serials' in item:
+                    item['serial'] = item.pop('serials')
             self._redisClient.set(token, json.dumps(data, ensure_ascii=False))
             if self._redisTtl:
                 self._redisClient.expire(token, self._redisTtl)
