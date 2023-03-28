@@ -113,6 +113,9 @@ class DataCollectorService(object):
                 if token == None or token == "download":
                     token = str(uuid.uuid4()) 
                 data = cherrypy.request.json
+                for item in data:
+                    if 'extraInfo' in item:
+                        item['extrainfo'] = item.pop('extraInfo')
                 self._redisClient.set(token, json.dumps(data, ensure_ascii=False))
                 if self._redisTtl:
                     self._redisClient.expire(token, self._redisTtl)
