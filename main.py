@@ -46,13 +46,13 @@ class DataCollectorService(object):
                 cherrypy.response.status = 404
                 return httpErrors[cherrypy.response.status]
         elif action == 'upload':
-            try:
-                requestKey = cherrypy.request.headers.get('access-key')
-            except:
-                cherrypy.response.status = 403
-                return httpErrors[cherrypy.response.status]
-            if (requestKey == self._accessKey):
-                if (token == 'new'):
+            if (token == 'new'):
+                try:
+                    requestKey = cherrypy.request.headers.get('access-key')
+                except:
+                    cherrypy.response.status = 403
+                    return httpErrors[cherrypy.response.status]
+                if (requestKey == self._accessKey):
                     newToken = str(uuid.uuid4())
                     qrData = "%s/%s/upload" % (self._serviceUrl, newToken)
                     qr = qrcode.make(qrData, box_size = 3)
@@ -61,19 +61,16 @@ class DataCollectorService(object):
                     cherrypy.response.headers['Token'] = newToken
                     cherrypy.response.headers['Content-Type'] = "image/png"
                     return buffer.getvalue()
-                elif token != None:
-                    data = self._redisClient.get(token)
-                    if data:
-                        return data
-                    else:
-                        cherrypy.response.status = 404
-                        return httpErrors[cherrypy.response.status]
+                else:
+                    cherrypy.response.status = 401
+                    return httpErrors[cherrypy.response.status]
+            elif token != None:
+                data = self._redisClient.get(token)
+                if data:
+                    return data
                 else:
                     cherrypy.response.status = 404
                     return httpErrors[cherrypy.response.status]
-            else:
-                cherrypy.response.status = 401
-                return httpErrors[cherrypy.response.status]
         elif action == 'csv':
             data = self._redisClient.get(token)
             if data:
@@ -195,7 +192,7 @@ if __name__ == '__main__':
             'request.dispatch': cherrypy.dispatch.MethodDispatcher(),
             'tools.sessions.on': True,
             'tools.response_headers.on': True,
-            'tools.encode.debug': True,
+            'tools.encode.debug': False,
             'tools.encode.text_only': False
         }
     }
