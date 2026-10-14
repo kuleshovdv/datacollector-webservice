@@ -1,0 +1,128 @@
+openapi: '3.0.0'
+info:
+  version: '2.0'
+  title: API Мобильного приложения "Облачный ТСД"
+  description: Для интеграции с сайтами и онлайн системами без промежуточной службы обмена
+servers:
+    - url: https://your_web_service.com
+      description: Ваш веб-сервер
+
+paths:
+  /{master_data_token}/json:
+    parameters:
+      - name: master_data_token
+        description: Может быть любой идентификатор, по которому веб-сервер идентифицирует пакет выгрузки данных из бэкенда в мобильное приложение.
+        in: path
+        required: true
+        schema:
+          type:
+            string
+    get:
+      summary: Предоставление данные о товарах мобильному приложению. 
+      description: Реализуйте обработчих этого запроса у себя на сервере и отобразите ссылку на него в виде QR кода. Важно, что бы полный путь заканчивался на "/json". При сканировании такого QR приложение отправит GET запрос по указанному URL и будет ожидать в ответ JSON массив с данными о товарах.
+      responses:
+        '200':
+          description: Данные о товарах для загрузки в мобильное приложение
+          content:
+            application/json:
+              schema:
+                type: array
+                items: 
+                  type: object
+                  required:
+                    - barcode
+                    - name
+                  properties:
+                    barcode:
+                      type: string
+                      description: Штрих-код товара. Должен быть уникален в рамках передаваемого массива.
+                      example: 2900000151116
+                    name:
+                      type: string
+                      description: Наименование товара
+                      example: Шапка мужская
+                    advanced_name:
+                      type: string
+                      description: Характеристика товара, например, размер и/или цвет и пр.
+                      example: XL, чёрный
+                    unit:
+                      type: string
+                      description: Единица измерения или упаковка товара, например, шт. или ящик
+                      example: шт.
+                    serial:
+                      type: boolean
+                      description: Укажите true если для этого товара обязательно нужно собрать серийные номера или коды маркировки
+                      example: false
+                    extrainfo:
+                      type: array
+                      description: Дополнительные сведения о товаре, например, артикул, цена, остатки на складе и пр.
+                      items:
+                        type: object
+                        required:
+                          - info
+                          - value
+                        properties:
+                          info:
+                            type: string
+                            description: Наименование свойства, например, "Артикул" или "Цена"
+                            example: Артикул
+                          value: 
+                            type: string
+                            description: Значение свойства
+                            example: 7878-3203
+  /{collected_data_token}/upload:
+    parameters:
+      - name: collected_data_token
+        description: Может быть любой идентификатор, по которому веб-сервер идентифицирует пакет загрузки данных из мобильного приложения в бэкенд
+        in: path
+        required: true
+        schema:
+          type:
+            string
+    post:
+      summary: Загрузка собранных данных из мобильного приложения. 
+      description: Отобразите URL этого запроса в виде QR кода у себя на сайте. Важно, что бы URL заканчивался на "/upload". Сканировав такой QR код приложение подготовит собранные данные в виде JSON массива и отправит в теле POST запроса на указанный URL.
+      requestBody:
+        content:
+            application/json:
+                schema:
+                  type: array
+                  description: Массив собранных данных
+                  items:
+                    type: object
+                    required:
+                      - barcode
+                      - quantity
+                    properties:
+                      barcode:
+                        type: string
+                        description: Штрих-код товара
+                        example: 2900000151116
+                      quantity:
+                        type: integer
+                        description: Количество товара с указанным штрих-кодом
+                        example: 1
+                      serials:
+                        type: array
+                        description: Серийные номера или коды маркировки
+                        items:
+                          type: object
+                          required:
+                            - serial
+                            - quantity
+                          properties:
+                            serial:
+                              type: string
+                              description: Серийный номер или содержимое AI Serial или GS1 кода маркировки
+                              example: 01E7GHSDC4K4Y
+                            quantity:
+                              type: integer
+                              description: Количество (как правило всегда 1)
+                              example: 1
+                            gs1cide:
+                              type: string
+                              description: Полный GS1 штрих-код маркировки
+                              example: \u001d01046070551333542101E7GHSDC4K4Y\u001d91EE06\u001d92RJQHq3cEy9nSzhvW1+HDD/9lK2uWwMUkAPAXfXGg13Q=
+      responses:
+        '200':
+          description: Данные успешно приняты
