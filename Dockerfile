@@ -2,7 +2,8 @@ FROM python:alpine
 LABEL description="Cloud Datacollector Gate"
 EXPOSE 8080/tcp
 RUN apk update && apk upgrade && apk add --no-cache supervisor bash redis
-RUN pip3 install cherrypy redis==4.4.0 qrcode csv configparser
+COPY requirements.txt /app/requirements.txt
+RUN pip3 install --no-cache-dir -r /app/requirements.txt
 RUN mkdir -p /etc/supervisord.d
 RUN mkdir -p /var/run/redis/
 RUN mkdir -p /app

@@ -1,0 +1,5 @@
+CherryPy
+qrcode[pil]
+redis
+# Provides distutils.util.strtobool on Python 3.12+.
+setuptools
